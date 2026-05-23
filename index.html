@@ -51,14 +51,20 @@ onAuthStateChanged(auth, async (user) => {
     } catch(e) {
       window._userRole = 'admin'; // fallback
     }
-    document.getElementById('login-screen').style.display = 'none';
-    document.getElementById('app').classList.add('visible');
+    const loginEl = document.getElementById('login-screen');
+    const appEl = document.getElementById('app');
+    loginEl.style.setProperty('display','none','important');
+    appEl.style.setProperty('display','flex','important');
+    appEl.classList.add('visible');
     loadFromFirebase();
   } else {
     window._currentUser = null;
     window._userRole = null;
-    document.getElementById('login-screen').style.display = 'flex';
-    document.getElementById('app').classList.remove('visible');
+    const loginEl2 = document.getElementById('login-screen');
+    const appEl2 = document.getElementById('app');
+    appEl2.style.setProperty('display','none','important');
+    appEl2.classList.remove('visible');
+    loginEl2.style.setProperty('display','flex','important');
   }
 });
 
@@ -85,7 +91,7 @@ body{color:var(--text);font-family:var(--font-b);font-size:14px}
 input,select,button,textarea{font-family:var(--font-b)}
 input:focus,select:focus,textarea:focus{outline:2px solid var(--amber);outline-offset:-1px}
 /* SIDEBAR */
-#sidebar{position:fixed;left:0;top:0;bottom:0;width:224px;background:var(--bg3);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;z-index:10}
+#sidebar{position:fixed;left:0;top:0;height:100%;width:224px;background:var(--bg3);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;z-index:5}
 .logo{padding:22px 20px 18px;border-bottom:1px solid var(--border)}
 .logo-title{font-family:var(--font-d);font-weight:800;font-size:15px;color:var(--amber);letter-spacing:.05em;text-transform:uppercase}
 .logo-sub{font-size:10px;color:var(--muted);margin-top:3px;letter-spacing:.1em}
@@ -183,12 +189,12 @@ tr:hover td{background:rgba(255,255,255,.015)}
 .totals-box{background:rgba(240,192,64,.05);border:1px solid rgba(240,192,64,.15);border-radius:6px;padding:14px}
 
 /* LOGIN */
-#login-screen{position:fixed;top:0;right:0;bottom:0;left:0;width:100%;height:100%;background:var(--bg3);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column}
+#login-screen{position:fixed;top:0;left:0;width:100vw;height:100vh;background:var(--bg3);z-index:99999;display:flex;align-items:center;justify-content:center;flex-direction:column}
 .login-box{background:var(--bg2);border:1px solid var(--border2);border-radius:12px;padding:40px;width:360px;max-width:92vw}
 .login-logo{font-family:var(--font-d);font-weight:800;font-size:22px;color:var(--amber);letter-spacing:.05em;text-transform:uppercase;margin-bottom:4px}
 .login-sub{font-size:12px;color:var(--muted);letter-spacing:.08em;margin-bottom:28px}
 .login-err{background:rgba(248,81,73,.1);border:1px solid rgba(248,81,73,.3);border-radius:6px;padding:10px 14px;font-size:12px;color:var(--red);margin-bottom:14px;display:none}
-#app{display:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:1}
+#app{display:none;position:fixed;top:0;left:0;width:100%;height:100%}
 #app.visible{display:block!important}
 
 /* PRINT */
@@ -280,26 +286,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
   <div class="sidebar-footer" id="sb-footer">v2.0</div>
 </div>
 <div id="main">
-  <div id="login-screen">
-  <div class="login-box">
-    <div class="login-logo">DistribuiMS</div>
-    <div class="login-sub">GESTÃO EMPRESARIAL</div>
-    <div class="login-err" id="login-err">E-mail ou senha incorretos.</div>
-    <div class="form-group">
-      <label class="form-label">E-mail</label>
-      <input id="login-email" type="email" class="form-input" placeholder="seu@email.com">
-    </div>
-    <div class="form-group">
-      <label class="form-label">Senha</label>
-      <input id="login-pass" type="password" class="form-input" placeholder="••••••••">
-    </div>
-    <button class="btn btn-primary" style="width:100%;margin-top:8px;padding:11px" onclick="doLogin()">Entrar</button>
-    <div style="text-align:center;margin-top:14px">
-      <span style="font-size:12px;color:var(--amber);cursor:pointer;text-decoration:underline" onclick="doResetPassword()">Esqueci minha senha</span>
-    </div>
-    <div style="text-align:center;margin-top:10px;font-size:11px;color:var(--muted)">Distribuidora Martins · Sistema de Gestão</div>
-  </div>
-</div>
+  
 <div id="app">
 <div id="sidebar-overlay" onclick="closeSidebar()"></div>
 <div id="topbar">
@@ -578,6 +565,26 @@ function printNF(id){
   </div>
   <div class="footer">Documento gerado pelo sistema DistribuiMS em ${fmtDate(today())}</div>
   </div><!-- #app -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">DistribuiMS</div>
+    <div class="login-sub">GESTÃO EMPRESARIAL</div>
+    <div class="login-err" id="login-err">E-mail ou senha incorretos.</div>
+    <div class="form-group">
+      <label class="form-label">E-mail</label>
+      <input id="login-email" type="email" class="form-input" placeholder="seu@email.com">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Senha</label>
+      <input id="login-pass" type="password" class="form-input" placeholder="••••••••">
+    </div>
+    <button class="btn btn-primary" style="width:100%;margin-top:8px;padding:11px" onclick="doLogin()">Entrar</button>
+    <div style="text-align:center;margin-top:14px">
+      <span style="font-size:12px;color:var(--amber);cursor:pointer;text-decoration:underline" onclick="doResetPassword()">Esqueci minha senha</span>
+    </div>
+    <div style="text-align:center;margin-top:10px;font-size:11px;color:var(--muted)">Distribuidora Martins · Sistema de Gestão</div>
+  </div>
+</div>
 </body></html>`);
   w.document.close();
   setTimeout(()=>w.print(),500);
@@ -1988,5 +1995,25 @@ document.querySelectorAll('.nav-item').forEach(n=>{
 
 </script>
 </div><!-- #app -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">DistribuiMS</div>
+    <div class="login-sub">GESTÃO EMPRESARIAL</div>
+    <div class="login-err" id="login-err">E-mail ou senha incorretos.</div>
+    <div class="form-group">
+      <label class="form-label">E-mail</label>
+      <input id="login-email" type="email" class="form-input" placeholder="seu@email.com">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Senha</label>
+      <input id="login-pass" type="password" class="form-input" placeholder="••••••••">
+    </div>
+    <button class="btn btn-primary" style="width:100%;margin-top:8px;padding:11px" onclick="doLogin()">Entrar</button>
+    <div style="text-align:center;margin-top:14px">
+      <span style="font-size:12px;color:var(--amber);cursor:pointer;text-decoration:underline" onclick="doResetPassword()">Esqueci minha senha</span>
+    </div>
+    <div style="text-align:center;margin-top:10px;font-size:11px;color:var(--muted)">Distribuidora Martins · Sistema de Gestão</div>
+  </div>
+</div>
 </body>
 </html>
