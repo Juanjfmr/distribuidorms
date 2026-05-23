@@ -90,6 +90,10 @@ html,body{height:100%;margin:0;padding:0;overflow:hidden;background:var(--bg);co
 input,select,button,textarea{font-family:var(--font-b)}
 input:focus,select:focus,textarea:focus{outline:2px solid var(--amber);outline-offset:-1px}
 
+/* BODY LAYOUT - simplest scrolling approach */
+html{height:100%}
+body{height:100%;margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--font-b);font-size:14px;display:flex;flex-direction:column;overflow:hidden}
+
 /* LOGIN */
 #login-screen{position:fixed;top:0;left:0;width:100%;height:100%;background:var(--bg3);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column}
 .login-box{background:var(--bg2);border:1px solid var(--border2);border-radius:12px;padding:32px 24px;width:340px;max-width:92vw}
@@ -98,19 +102,19 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--amber);outline-o
 .login-err{background:rgba(248,81,73,.1);border:1px solid rgba(248,81,73,.3);border-radius:6px;padding:9px 12px;font-size:12px;color:var(--red);margin-bottom:12px;display:none}
 
 /* ── APP LAYOUT (mobile-only) ── */
-#app{display:none;position:fixed;top:0;left:0;width:100%;height:100%;overflow:hidden}
-#app.visible{display:block!important}
+#app{flex:1;display:none;flex-direction:column;overflow:hidden;min-height:0}
+#app.visible{display:flex!important}
 
 /* Topbar fixed at top */
-#topbar{position:fixed;top:0;left:0;right:0;height:52px;padding:0 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--bg);gap:10px;z-index:50}
+#topbar{flex-shrink:0;height:52px;padding:0 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--bg);gap:10px;z-index:50}
 .page-title{font-family:var(--font-d);font-weight:700;font-size:16px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .topbar-date{display:none}
 #sync-status{display:none}
 .hamburger-btn{display:flex;background:none;border:1px solid var(--border2);color:var(--text);border-radius:6px;width:38px;height:38px;font-size:18px;cursor:pointer;align-items:center;justify-content:center;flex-shrink:0;line-height:1}
 
 /* Scrollable content area below topbar */
-#main{position:fixed;top:52px;left:0;right:0;bottom:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;background:var(--bg)}
-#content{padding:12px 10px;min-height:100%;box-sizing:border-box}
+#main{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;touch-action:pan-y;min-height:0}
+#content{padding:12px 10px}
 
 /* Sidebar - hidden offscreen, slides in */
 #sidebar{position:fixed;top:52px;left:-260px;bottom:0;width:240px;background:var(--bg3);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;z-index:200;transition:left .25s ease;box-shadow:4px 0 24px rgba(0,0,0,.7)}
