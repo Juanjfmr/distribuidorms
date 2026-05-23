@@ -147,7 +147,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
 .form-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
 .form-grid-4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px}
 /* MODAL */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:100;display:flex;align-items:center;justify-content:center}
+.modal-overlay{position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.75);z-index:100;display:flex;align-items:center;justify-content:center}
 .modal-box{background:var(--bg2);border:1px solid var(--border2);border-radius:10px;padding:28px;width:620px;max-width:95vw;max-height:90vh;overflow-y:auto}
 .modal-box-lg{width:780px}
 .modal-title{font-family:var(--font-d);font-weight:700;font-size:18px;margin-bottom:20px}
@@ -183,12 +183,12 @@ tr:hover td{background:rgba(255,255,255,.015)}
 .totals-box{background:rgba(240,192,64,.05);border:1px solid rgba(240,192,64,.15);border-radius:6px;padding:14px}
 
 /* LOGIN */
-#login-screen{position:fixed;inset:0;background:var(--bg3);z-index:999;display:flex;align-items:center;justify-content:center;flex-direction:column}
+#login-screen{position:fixed;top:0;right:0;bottom:0;left:0;width:100%;height:100%;background:var(--bg3);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column}
 .login-box{background:var(--bg2);border:1px solid var(--border2);border-radius:12px;padding:40px;width:360px;max-width:92vw}
 .login-logo{font-family:var(--font-d);font-weight:800;font-size:22px;color:var(--amber);letter-spacing:.05em;text-transform:uppercase;margin-bottom:4px}
 .login-sub{font-size:12px;color:var(--muted);letter-spacing:.08em;margin-bottom:28px}
 .login-err{background:rgba(248,81,73,.1);border:1px solid rgba(248,81,73,.3);border-radius:6px;padding:10px 14px;font-size:12px;color:var(--red);margin-bottom:14px;display:none}
-#app{display:none;position:fixed;inset:0}
+#app{display:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:1}
 #app.visible{display:block!important}
 
 /* PRINT */
@@ -205,7 +205,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
 
 /* ─── MOBILE ─────────────────────────────────────────────────────────────── */
 .hamburger-btn{display:none;background:none;border:1px solid var(--border2);color:var(--text);border-radius:6px;width:36px;height:36px;font-size:18px;cursor:pointer;align-items:center;justify-content:center}
-#sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:150}
+#sidebar-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.65);z-index:150}
 
 @media(max-width:900px){
   .hamburger-btn{display:flex!important}
@@ -213,9 +213,10 @@ tr:hover td{background:rgba(255,255,255,.015)}
     left:-230px!important;
     z-index:200;
     transition:left .25s ease;
-    box-shadow:6px 0 32px rgba(0,0,0,.7)
+    box-shadow:6px 0 32px rgba(0,0,0,.7);
+    width:224px!important
   }
-  #sidebar.open{left:0!important}
+  #sidebar.open{left:0!important;box-shadow:6px 0 32px rgba(0,0,0,.9)}
   #sidebar-overlay.show{display:block}
   #main{left:0!important}
   #content{padding:12px 10px!important}
@@ -488,7 +489,7 @@ function printNF(id){
   
 /* ─── MOBILE ─────────────────────────────────────────────────────────────── */
 .hamburger-btn{display:none;background:none;border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:16px;line-height:1}
-#sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:150;backdrop-filter:blur(2px)}
+#sidebar-overlay{display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.6);z-index:150;backdrop-filter:blur(2px)}
 @media(max-width:900px){
   body{overflow:hidden}
   .hamburger-btn{display:flex!important;align-items:center;justify-content:center}
@@ -1633,7 +1634,33 @@ function resetData(){
   el("topbar-date").textContent=`${days[now.getDay()]}, ${now.getDate()} de ${months[now.getMonth()]} de ${now.getFullYear()}`;
   el("sb-footer").textContent=`v2.0 · ${state.company&&state.company.name?state.company.name:"DistribuiMS"}`;
   render();
+  // Force correct layout based on screen width
+  enforceLayout();
+  window.addEventListener('resize', enforceLayout);
 })();
+
+function enforceLayout() {
+  const w = window.innerWidth;
+  const sidebar = document.getElementById('sidebar');
+  const main = document.getElementById('main');
+  const hamburger = document.getElementById('hamburger');
+  if (!sidebar || !main) return;
+  if (w <= 900) {
+    // Mobile: sidebar hidden, main full width
+    if (!sidebar.classList.contains('open')) {
+      sidebar.style.left = '-230px';
+    }
+    main.style.left = '0';
+    main.style.width = '100%';
+    if (hamburger) hamburger.style.display = 'flex';
+  } else {
+    // Desktop: sidebar visible, main offset
+    sidebar.style.left = '0';
+    main.style.left = '224px';
+    main.style.width = 'calc(100% - 224px)';
+    if (hamburger) hamburger.style.display = 'none';
+  }
+}
 
 
 // ─── FIREBASE SYNC ────────────────────────────────────────────────────────────
