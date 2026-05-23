@@ -135,8 +135,13 @@ nav{flex:1;padding:10px 0;display:flex;flex-direction:column;gap:2px;overflow-y:
 #sync-status{display:none}
 
 /* CARDS */
-.card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px;overflow-x:auto}
-table{width:100%;border-collapse:collapse;font-size:12px;min-width:440px}
+
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px;overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}
+.card-body{padding:12px}
+table{border-collapse:collapse;font-size:12px;width:max-content;min-width:100%}
+.table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%;padding:0 0 4px 0}
+.table-scroll table{min-width:420px}
+
 th{text-align:left;padding:7px 8px;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border);background:var(--bg);white-space:nowrap}
 td{padding:7px 8px;border-bottom:1px solid var(--border);color:var(--text2);vertical-align:middle}
 tr:last-child td{border-bottom:none}
@@ -417,7 +422,7 @@ function printNF(id){
     .nf-info{text-align:right}
     .section{margin-bottom:14px}
     .section-label{font-weight:bold;font-size:11px;text-transform:uppercase;color:#555;margin-bottom:4px}
-    table{width:100%;border-collapse:collapse;font-size:12px}
+    table{border-collapse:collapse;font-size:12px;width:max-content;min-width:100%}
     th{background:#f0f0f0;padding:6px 10px;text-align:left;border:1px solid #ddd;font-size:11px}
     td{padding:6px 10px;border:1px solid #ddd}
     .totals{margin-top:12px;text-align:right}
@@ -1902,13 +1907,6 @@ async function toggleUserActive(uid, currentlyActive) {
   renderUsuarios(); showSyncStatus(`✓ Usuário ${action}do`);
 }
 
-// ─── MOBILE SIDEBAR ──────────────────────────────────────────────────────────
-function toggleSidebar(){
-  const sb=document.getElementById('sidebar');
-  const ov=document.getElementById('sidebar-overlay');
-  const isOpen=sb.classList.contains('open');
-  if(isOpen){ closeSidebar(); } else { sb.classList.add('open'); ov.classList.add('show'); }
-}
 function closeSidebar(){
   document.getElementById('sidebar').classList.remove('open');
   document.getElementById('sidebar-overlay').classList.remove('show');
