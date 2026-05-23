@@ -87,22 +87,22 @@ document.addEventListener('DOMContentLoaded', () => {
   --amber:#f0c040;--green:#3fb950;--red:#f85149;--blue:#58a6ff;
   --font-d:'Syne',sans-serif;--font-b:'Inter',sans-serif;--font-m:'JetBrains Mono',monospace;
 }
+html,body{height:100%;margin:0;padding:0;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font-b);font-size:14px}
 input,select,button,textarea{font-family:var(--font-b)}
 input:focus,select:focus,textarea:focus{outline:2px solid var(--amber);outline-offset:-1px}
 
-/* ─── LAYOUT ────────────────────────────────────────────────────────────────── */
-html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font-b);font-size:14px}
-#login-screen{position:fixed;top:0;left:0;width:100vw;height:100vh;background:var(--bg3);z-index:99999;display:flex;align-items:center;justify-content:center;flex-direction:column}
-#app{width:100%;height:100vh;display:none;flex-direction:row;overflow:hidden}
-#app.visible{display:flex!important}
-#sidebar{width:224px;min-width:224px;height:100vh;background:var(--bg3);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
-#main{flex:1;min-width:0;display:flex;flex-direction:column;height:100vh;overflow:hidden}
+/* ─── CORE LAYOUT (position:absolute based) ─────────────────────────────────── */
+#login-screen{position:fixed;top:0;left:0;width:100%;height:100%;background:var(--bg3);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column}
+#app{position:fixed;top:0;left:0;width:100%;height:100%;overflow:hidden;display:none}
+#app.visible{display:block!important}
+#sidebar{position:absolute;top:0;left:0;width:224px;height:100%;background:var(--bg3);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;z-index:10;transition:left .25s ease}
+#main{position:absolute;top:0;left:224px;right:0;bottom:0;display:flex;flex-direction:column;overflow:hidden;background:var(--bg)}
 #topbar{flex-shrink:0;padding:15px 28px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--bg)}
-#content{flex:1;overflow-y:auto;overflow-x:hidden;padding:24px 28px}
-#sidebar-overlay{display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,.65);z-index:150}
+#content{flex:1;overflow-y:auto;overflow-x:hidden;padding:24px 28px;min-height:0}
+#sidebar-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.65);z-index:150}
 #sidebar-overlay.show{display:block}
 
-/* ─── SIDEBAR ───────────────────────────────────────────────────────────────── */
+/* ─── SIDEBAR INTERNALS ─────────────────────────────────────────────────────── */
 .logo{padding:22px 20px 18px;border-bottom:1px solid var(--border)}
 .logo-title{font-family:var(--font-d);font-weight:800;font-size:15px;color:var(--amber);letter-spacing:.05em;text-transform:uppercase}
 .logo-sub{font-size:10px;color:var(--muted);margin-top:3px;letter-spacing:.1em}
@@ -113,7 +113,7 @@ nav{flex:1;padding:14px 0;display:flex;flex-direction:column;gap:2px;overflow-y:
 .nav-sep{height:1px;background:var(--border);margin:8px 0}
 .sidebar-footer{padding:14px 20px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);font-family:var(--font-m)}
 
-/* ─── TOPBAR ────────────────────────────────────────────────────────────────── */
+/* ─── TOPBAR INTERNALS ──────────────────────────────────────────────────────── */
 .page-title{font-family:var(--font-d);font-weight:700;font-size:20px}
 .topbar-date{font-size:12px;color:var(--muted);font-family:var(--font-m)}
 .hamburger-btn{display:none;background:none;border:1px solid var(--border2);color:var(--text);border-radius:6px;width:36px;height:36px;font-size:18px;cursor:pointer;align-items:center;justify-content:center;flex-shrink:0}
@@ -147,10 +147,8 @@ tr:hover td{background:rgba(255,255,255,.015)}
 
 /* ─── BUTTONS ───────────────────────────────────────────────────────────────── */
 .btn{padding:8px 16px;border-radius:6px;border:none;cursor:pointer;font-size:13px;font-weight:600;transition:all .15s}
-.btn-primary{background:var(--amber);color:#0d1117}
-.btn-primary:hover{background:#ffd050}
-.btn-ghost{background:var(--border);color:var(--text2)}
-.btn-ghost:hover{background:var(--border2)}
+.btn-primary{background:var(--amber);color:#0d1117}.btn-primary:hover{background:#ffd050}
+.btn-ghost{background:var(--border);color:var(--text2)}.btn-ghost:hover{background:var(--border2)}
 .btn-danger{background:rgba(248,81,73,.15);color:var(--red);border:1px solid rgba(248,81,73,.3)}
 .btn-sm{padding:4px 10px;border-radius:5px;border:1px solid var(--border);cursor:pointer;font-size:12px;font-weight:500;background:transparent;color:var(--muted);transition:all .15s}
 .btn-sm:hover{border-color:var(--amber);color:var(--amber)}
@@ -167,7 +165,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
 .form-grid-4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px}
 
 /* ─── MODAL ─────────────────────────────────────────────────────────────────── */
-.modal-overlay{position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,.75);z-index:100;display:flex;align-items:center;justify-content:center}
+.modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.75);z-index:1000;display:flex;align-items:center;justify-content:center}
 .modal-box{background:var(--bg2);border:1px solid var(--border2);border-radius:10px;padding:28px;width:620px;max-width:95vw;max-height:90vh;overflow-y:auto}
 .modal-box-lg{width:780px}
 .modal-title{font-family:var(--font-d);font-weight:700;font-size:18px;margin-bottom:20px}
@@ -191,8 +189,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
 .bar-fill{height:100%;border-radius:3px;transition:width .4s ease}
 .tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:20px}
 .tab{padding:10px 20px;cursor:pointer;font-size:13px;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s;font-weight:500}
-.tab:hover{color:var(--text2)}
-.tab.active{color:var(--amber);border-bottom-color:var(--amber)}
+.tab:hover{color:var(--text2)}.tab.active{color:var(--amber);border-bottom-color:var(--amber)}
 .items-box{background:var(--bg);border-radius:6px;padding:12px;margin-top:8px}
 .item-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)}
 .item-row:last-child{border-bottom:none}
@@ -212,32 +209,26 @@ tr:hover td{background:rgba(255,255,255,.015)}
 /* ─── MOBILE ────────────────────────────────────────────────────────────────── */
 @media(max-width:768px){
   .hamburger-btn{display:flex!important}
-  #sidebar{position:fixed;top:0;left:-224px;height:100vh;z-index:200;transition:left .25s ease;box-shadow:6px 0 24px rgba(0,0,0,.7)}
+  #sidebar{left:-224px}
   #sidebar.open{left:0}
-  #main{width:100vw}
+  #main{left:0!important}
   #content{padding:12px 10px}
   #topbar{padding:10px 12px}
   .topbar-date,#sync-status{display:none}
   .page-title{font-size:15px}
   .kpi-grid,.kpi-grid-3{grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
   .kpi-grid-2{grid-template-columns:1fr 1fr;gap:8px}
-  .kpi{padding:12px}
-  .kpi-value{font-size:15px}
-  .kpi-label{font-size:10px}
+  .kpi{padding:12px}.kpi-value{font-size:15px}.kpi-label{font-size:10px}
   .grid-2,.grid-3{grid-template-columns:1fr}
   .form-grid-2,.form-grid-3{grid-template-columns:1fr}
   .card{padding:12px;overflow-x:auto}
   table{font-size:12px;min-width:460px}
-  th{padding:7px 8px;font-size:10px}
-  td{padding:7px 8px}
-  .section-header{flex-wrap:wrap;gap:8px}
-  .section-title{font-size:14px}
+  th{padding:7px 8px;font-size:10px}td{padding:7px 8px}
+  .section-header{flex-wrap:wrap;gap:8px}.section-title{font-size:14px}
   .modal-overlay{align-items:flex-end;padding:0}
   .modal-box,.modal-box-lg{width:100%!important;max-width:100%!important;border-radius:16px 16px 0 0;max-height:88vh;padding:18px 14px}
-  .tabs{overflow-x:auto}
-  .tab{white-space:nowrap;padding:9px 12px;font-size:12px}
-  .btn{padding:8px 12px;font-size:12px}
-  .btn-sm{padding:5px 8px;font-size:11px}
+  .tabs{overflow-x:auto}.tab{white-space:nowrap;padding:9px 12px;font-size:12px}
+  .btn{padding:8px 12px;font-size:12px}.btn-sm{padding:5px 8px;font-size:11px}
 }
 @media(max-width:420px){
   .kpi-grid,.kpi-grid-3{grid-template-columns:1fr 1fr}
