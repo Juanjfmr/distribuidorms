@@ -896,7 +896,7 @@ function nfRenderItems(){
       </div>
     </div>`:"";
 }
-function emitirNF(num){
+async function emitirNF(num){
   if(!el("nf-client").value) return alert("Selecione o cliente.");
   if(!state.nfItems.length) return alert("Adicione pelo menos um item.");
   const sub=nfGetSubtotal();
@@ -923,7 +923,7 @@ function emitirNF(num){
   state.receivables.push(...recs);
   if(terms==="À Vista") nf.status="emitida"; // stays emitida until paid
   state.invoices.push(nf);
-  saveState(); closeModal(); renderNotas();
+  await saveToFirebase(); closeModal(); renderNotas();
 }
 function viewNF(id){
   const n=state.invoices.find(x=>x.id===id);
@@ -972,7 +972,7 @@ function viewNF(id){
       ${n.status!=="cancelada"&&n.status!=="paga"?`<button class="btn btn-danger" onclick="cancelNF(${n.id});closeModal()">Cancelar NF</button>`:""}
     </div>`,true);
 }
-function cancelNF(id){
+async function cancelNF(id){
   if(!confirm("Cancelar esta nota fiscal? O estoque será restaurado.")) return;
   const n=state.invoices.find(x=>x.id===id);
   n.status="cancelada";
@@ -983,7 +983,7 @@ function cancelNF(id){
   });
   // cancel receivables
   state.receivables.forEach(r=>{ if(r.invoiceId===id&&r.status==="aberta") r.status="cancelada"; });
-  saveState(); renderNotas();
+  await saveToFirebase(); renderNotas();
 }
 
 // ─── COMPRAS ─────────────────────────────────────────────────────────────────
@@ -1091,7 +1091,7 @@ function compraRenderItems(){
       </div>
     </div>`:"";
 }
-function salvarCompra(num){
+async function salvarCompra(num){
   if(!el("cp-sup").value) return alert("Selecione o fornecedor.");
   if(!state.compraItems.length) return alert("Adicione pelo menos um item.");
   const freight=parseFloat(el("cp-freight").value)||0;
@@ -1119,7 +1119,7 @@ function salvarCompra(num){
   // create payables
   const pays=generatePayables(purchase.id,num,supplierId,total,date,terms,"Compra "+num);
   state.payables.push(...pays);
-  saveState(); closeModal(); renderCompras();
+  await saveToFirebase(); closeModal(); renderCompras();
 }
 function viewCompra(id){
   const c=state.purchases.find(x=>x.id===id);
