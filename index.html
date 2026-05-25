@@ -619,7 +619,9 @@ function renderDashboard(){
 
 // ─── PRODUTOS ────────────────────────────────────────────────────────────────
 function renderProdutos(){
-  const search=(el("prod-search")||{}).value||"";
+  const searchEl=el("prod-search");
+  const search=(searchEl&&document.activeElement===searchEl)?searchEl.value:(searchEl||{}).value||"";
+  const cursorPos=searchEl?searchEl.selectionStart:0;
   const filterCat=(el("prod-filter-cat")||{}).value||"";
   const filterStock=(el("prod-filter-stock")||{}).value||"";
   const cats=[...new Set(state.products.map(p=>p.category))].sort();
@@ -671,6 +673,9 @@ function renderProdutos(){
           </div></td>
         </tr>`;}).join(""):`<tr><td colspan="9" class="empty">Nenhum produto.</td></tr>`}
     </tbody></table></div>`;
+  // Restore focus and cursor position after re-render
+  const si=el("prod-search");
+  if(si&&search){ si.focus(); try{ si.setSelectionRange(cursorPos,cursorPos); }catch(e){} }
 }
 function openProdModal(id){
   const p=id?state.products.find(x=>x.id===id):null;
