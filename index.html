@@ -935,16 +935,8 @@ function openNFModal(){
     <div class="divider"></div>
     <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:10px;letter-spacing:.06em">ITENS DA NOTA</div>
     <div style="margin-bottom:10px">
-      <input id="nf-prod-search" class="form-input" style="width:100%;margin-bottom:6px" placeholder="🔍 Buscar produto pelo nome..." oninput="nfFilterProds(this.value)">
-      <div class="row">
-        <select id="nf-prod" class="form-input" style="flex:1">
-          <option value="">Selecione produto...</option>
-          ${state.products.map(p=>`<option value="${p.id}">${p.name} (${p.unit}) — ${fmt(p.salePrice)}</option>`).join("")}
-        </select>
-        <input id="nf-qty" type="number" min="1" class="form-input" style="width:80px" placeholder="Qtd" value="1">
-        <input id="nf-item-disc" type="number" min="0" max="100" class="form-input" style="width:70px" placeholder="Desc%" value="0">
-        <button class="btn btn-primary" onclick="nfAddItem()">+ Add</button>
-      </div>
+      <input id="nf-prod-search" class="form-input" style="width:100%;margin-bottom:6px" placeholder="🔍 Buscar produto pelo nome..." oninput="nfRenderProdList(this.value)" autocomplete="off">
+      <div id="nf-prod-list" style="max-height:210px;overflow-y:auto;border:1px solid var(--border);border-radius:6px"></div>
     </div>
     <div id="nf-items-list"></div>
     <div id="nf-totals"></div>
@@ -953,16 +945,42 @@ function openNFModal(){
       <button class="btn btn-primary" onclick="emitirNF('${nextNum}')">Emitir Nota</button>
     </div>`,true);
   nfRenderItems();
+  nfRenderProdList("");
+}
+function nfRenderProdList(search){
+  const listEl=el("nf-prod-list");
+  if(!listEl) return;
+  const q=(search||"").toLowerCase();
+  const prods=state.products.filter(p=>!q||p.name.toLowerCase().includes(q)||(p.sku&&p.sku.toLowerCase().includes(q)));
+  if(!prods.length){ listEl.innerHTML=`<div style="padding:14px;text-align:center;color:var(--muted);font-size:13px">Nenhum produto encontrado</div>`; return; }
+  listEl.innerHTML=prods.map(p=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--border);background:var(--bg2);transition:background .1s" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background='var(--bg2)'">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div>
+        <div style="font-size:11px;color:var(--muted)">${p.unit} &nbsp;·&nbsp; Estoque: <span style="color:${p.stock>0?'var(--green)':'var(--red)'}">${p.stock}</span></div>
+      </div>
+      <div style="min-width:72px;text-align:right;color:var(--amber);font-size:13px;font-weight:600;flex-shrink:0">${fmt(p.salePrice)}</div>
+      <input type="number" id="nf-row-qty-${p.id}" class="form-input" value="1" min="1" style="width:58px;padding:4px 6px;flex-shrink:0" title="Quantidade">
+      <input type="number" id="nf-row-disc-${p.id}" class="form-input" value="0" min="0" max="100" style="width:52px;padding:4px 6px;flex-shrink:0" placeholder="Desc%">
+      <button class="btn btn-primary" style="padding:4px 10px;font-size:12px;flex-shrink:0" id="nf-row-btn-${p.id}" onclick="nfAddItemFromList(${p.id})">+ Add</button>
+    </div>`).join("");
+}
+function nfAddItemFromList(prodId){
+  const p=getProd(prodId);
+  if(!p) return;
+  const qty=parseInt(el(`nf-row-qty-${prodId}`)?.value)||1;
+  const disc=parseFloat(el(`nf-row-disc-${prodId}`)?.value)||0;
+  const existing=state.nfItems.find(it=>it.productId===prodId);
+  if(existing){ existing.qty+=qty; }
+  else{ state.nfItems.push({productId:p.id,qty,price:p.salePrice,itemDiscount:disc}); }
+  const qEl=el(`nf-row-qty-${prodId}`); if(qEl) qEl.value="1";
+  const dEl=el(`nf-row-disc-${prodId}`); if(dEl) dEl.value="0";
+  const btn=el(`nf-row-btn-${prodId}`);
+  if(btn){ btn.textContent="✓ Adicionado"; btn.style.background="var(--green)"; setTimeout(()=>{ btn.textContent="+ Add"; btn.style.background=""; },900); }
+  nfRenderItems();
 }
 function nfAddItem(){
-  const prodId=parseInt(el("nf-prod").value);
-  const qty=parseInt(el("nf-qty").value)||1;
-  const disc=parseFloat(el("nf-item-disc").value)||0;
-  if(!prodId) return;
-  const p=getProd(prodId);
-  state.nfItems.push({productId:p.id,qty,price:p.salePrice,itemDiscount:disc});
-  el("nf-prod").value=""; el("nf-qty").value="1"; el("nf-item-disc").value="0";
-  nfRenderItems();
+  // legacy — kept for compatibility
 }
 function nfRemItem(i){ state.nfItems.splice(i,1); nfRenderItems(); }
 function nfGetSubtotal(){ return state.nfItems.reduce((s,it)=>s+(it.qty*it.price*(1-(it.itemDiscount||0)/100)),0); }
@@ -1992,15 +2010,8 @@ async function toggleUserActive(uid, currentlyActive) {
 }
 
 
-// ─── NF PRODUCT FILTER ───────────────────────────────────────────────────────
-function nfFilterProds(search){
-  const sel=el("nf-prod");
-  if(!sel) return;
-  const q=(search||"").toLowerCase();
-  sel.innerHTML=`<option value="">Selecione produto...</option>`+
-    state.products.filter(p=>p.name.toLowerCase().includes(q)||p.sku&&p.sku.toLowerCase().includes(q))
-      .map(p=>`<option value="${p.id}">${p.name} (${p.unit}) — ${fmt(p.salePrice)}</option>`).join("");
-}
+// ─── NF PRODUCT FILTER — alias (mantido por compatibilidade) ─────────────────
+function nfFilterProds(search){ nfRenderProdList(search); }
 
 // ─── PEDIDOS DE VENDA ─────────────────────────────────────────────────────────
 function renderPedidos(){
@@ -2090,16 +2101,8 @@ function openPedidoModal(prefill){
     <div class="divider"></div>
     <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:10px;letter-spacing:.06em">ITENS DO PEDIDO</div>
     <div style="margin-bottom:10px">
-      <input id="ped-prod-search" class="form-input" style="width:100%;margin-bottom:6px" placeholder="🔍 Buscar produto pelo nome..." oninput="pedidoFilterProds(this.value)">
-      <div class="row">
-        <select id="ped-prod" class="form-input" style="flex:1">
-          <option value="">Selecione produto...</option>
-          ${state.products.map(p=>`<option value="${p.id}">${p.name} (${p.unit}) — ${fmt(p.salePrice)}</option>`).join("")}
-        </select>
-        <input id="ped-qty" type="number" min="1" class="form-input" style="width:80px" placeholder="Qtd" value="1">
-        <input id="ped-item-disc" type="number" min="0" max="100" class="form-input" style="width:70px" placeholder="Desc%" value="0">
-        <button class="btn btn-primary" onclick="pedidoAddItem()">+ Add</button>
-      </div>
+      <input id="ped-prod-search" class="form-input" style="width:100%;margin-bottom:6px" placeholder="🔍 Buscar produto pelo nome..." oninput="pedidoRenderProdList(this.value)" autocomplete="off">
+      <div id="ped-prod-list" style="max-height:210px;overflow-y:auto;border:1px solid var(--border);border-radius:6px"></div>
     </div>
     <div id="ped-items-list"></div>
     <div id="ped-totals"></div>
@@ -2109,19 +2112,45 @@ function openPedidoModal(prefill){
       <button class="btn btn-primary" onclick="salvarPedido('${nextNum}',true)">Confirmar Pedido</button>
     </div>`,true);
   pedidoRenderItems();
+  pedidoRenderProdList("");
 }
-function pedidoFilterProds(search){
-  const sel=el("ped-prod");
-  if(!sel) return;
+function pedidoRenderProdList(search){
+  const listEl=el("ped-prod-list");
+  if(!listEl) return;
   const q=(search||"").toLowerCase();
-  sel.innerHTML=`<option value="">Selecione produto...</option>`+
-    state.products.filter(p=>p.name.toLowerCase().includes(q)||(p.sku&&p.sku.toLowerCase().includes(q)))
-      .map(p=>`<option value="${p.id}">${p.name} (${p.unit}) — ${fmt(p.salePrice)}</option>`).join("");
+  const prods=state.products.filter(p=>!q||p.name.toLowerCase().includes(q)||(p.sku&&p.sku.toLowerCase().includes(q)));
+  if(!prods.length){ listEl.innerHTML=`<div style="padding:14px;text-align:center;color:var(--muted);font-size:13px">Nenhum produto encontrado</div>`; return; }
+  listEl.innerHTML=prods.map(p=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--border);background:var(--bg2);transition:background .1s" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background='var(--bg2)'">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div>
+        <div style="font-size:11px;color:var(--muted)">${p.unit} &nbsp;·&nbsp; Estoque: <span style="color:${p.stock>0?'var(--green)':'var(--red)'}">${p.stock}</span></div>
+      </div>
+      <div style="min-width:72px;text-align:right;color:var(--amber);font-size:13px;font-weight:600;flex-shrink:0">${fmt(p.salePrice)}</div>
+      <input type="number" id="ped-row-qty-${p.id}" class="form-input" value="1" min="1" style="width:58px;padding:4px 6px;flex-shrink:0" title="Quantidade">
+      <input type="number" id="ped-row-disc-${p.id}" class="form-input" value="0" min="0" max="100" style="width:52px;padding:4px 6px;flex-shrink:0" placeholder="Desc%">
+      <button class="btn btn-primary" style="padding:4px 10px;font-size:12px;flex-shrink:0" id="ped-row-btn-${p.id}" onclick="pedidoAddItemFromList(${p.id})">+ Add</button>
+    </div>`).join("");
 }
+function pedidoAddItemFromList(prodId){
+  const p=getProd(prodId);
+  if(!p) return;
+  const qty=parseInt(el(`ped-row-qty-${prodId}`)?.value)||1;
+  const disc=parseFloat(el(`ped-row-disc-${prodId}`)?.value)||0;
+  const existing=state.pedidoItems.find(it=>it.productId===prodId);
+  if(existing){ existing.qty+=qty; }
+  else{ state.pedidoItems.push({productId:p.id,name:p.name,unit:p.unit,qty,price:p.salePrice,itemDiscount:disc}); }
+  const qEl=el(`ped-row-qty-${prodId}`); if(qEl) qEl.value="1";
+  const dEl=el(`ped-row-disc-${prodId}`); if(dEl) dEl.value="0";
+  const btn=el(`ped-row-btn-${prodId}`);
+  if(btn){ btn.textContent="✓ Adicionado"; btn.style.background="var(--green)"; setTimeout(()=>{ btn.textContent="+ Add"; btn.style.background=""; },900); }
+  pedidoRenderItems();
+}
+function pedidoFilterProds(search){ pedidoRenderProdList(search); }
 function pedidoAddItem(){
-  const prodId=parseInt(el("ped-prod").value);
-  const qty=parseInt(el("ped-qty").value)||1;
-  const disc=parseFloat(el("ped-item-disc").value)||0;
+  const prodId=parseInt(el("ped-prod")?.value);
+  const qty=parseInt(el("ped-qty")?.value)||1;
+  const disc=parseFloat(el("ped-item-disc")?.value)||0;
   if(!prodId) return;
   const p=getProd(prodId);
   if(!p) return;
@@ -2219,16 +2248,8 @@ function faturarPedido(id){
     <div class="divider"></div>
     <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:10px;letter-spacing:.06em">ITENS DA NOTA</div>
     <div style="margin-bottom:10px">
-      <input id="nf-prod-search" class="form-input" style="width:100%;margin-bottom:6px" placeholder="🔍 Buscar produto pelo nome..." oninput="nfFilterProds(this.value)">
-      <div class="row">
-        <select id="nf-prod" class="form-input" style="flex:1">
-          <option value="">Selecione produto...</option>
-          ${state.products.map(p=>`<option value="${p.id}">${p.name} (${p.unit}) — ${fmt(p.salePrice)}</option>`).join("")}
-        </select>
-        <input id="nf-qty" type="number" min="1" class="form-input" style="width:80px" placeholder="Qtd" value="1">
-        <input id="nf-item-disc" type="number" min="0" max="100" class="form-input" style="width:70px" placeholder="Desc%" value="0">
-        <button class="btn btn-primary" onclick="nfAddItem()">+ Add</button>
-      </div>
+      <input id="nf-prod-search" class="form-input" style="width:100%;margin-bottom:6px" placeholder="🔍 Buscar produto pelo nome..." oninput="nfRenderProdList(this.value)" autocomplete="off">
+      <div id="nf-prod-list" style="max-height:210px;overflow-y:auto;border:1px solid var(--border);border-radius:6px"></div>
     </div>
     <div id="nf-items-list"></div>
     <div id="nf-totals"></div>
@@ -2237,6 +2258,7 @@ function faturarPedido(id){
       <button class="btn btn-primary" onclick="emitirNFdePedido('${nextNum}','${o.id}')">Emitir Nota</button>
     </div>`,true);
   nfRenderItems();
+  nfRenderProdList("");
 }
 async function emitirNFdePedido(nfNum, pedidoId){
   // Emit NF and mark pedido as faturado — reuse emitirNF logic
