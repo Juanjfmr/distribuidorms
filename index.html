@@ -383,6 +383,7 @@ const el = id => document.getElementById(id);
 const totalIn = (txs) => (txs||state.transactions).filter(t=>t.type==="entrada").reduce((s,t)=>s+t.amount,0);
 const totalOut = (txs) => (txs||state.transactions).filter(t=>t.type==="saida").reduce((s,t)=>s+t.amount,0);
 const isOverdue = dueDate => dueDate < today();
+const norm = s => (s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase();
 const CAT_PROD=["Bebidas","Alimentos","Limpeza","Higiene","Outros"];
 const UNITS=["UN","CX","DZ","PCT","KG","LT","MT"];
 const PAY_TERMS=["À Vista","30 dias","30/60","30/60/90"];
@@ -623,7 +624,7 @@ function renderProdutos(){
   const filterStock=(el("prod-filter-stock")||{}).value||"";
   const cats=[...new Set(state.products.map(p=>p.category))].sort();
   const filtered=state.products.filter(p=>{
-    const mS=!search||p.name.toLowerCase().includes(search.toLowerCase())||p.code.toLowerCase().includes(search.toLowerCase());
+    const mS=!search||norm(p.name).includes(norm(search))||norm(p.code).includes(norm(search));
     const mC=!filterCat||p.category===filterCat;
     const mK=!filterStock||(filterStock==="ok"&&p.stock>p.minStock)||(filterStock==="baixo"&&p.stock>0&&p.stock<=p.minStock)||(filterStock==="zerado"&&p.stock===0);
     return mS&&mC&&mK;
@@ -863,7 +864,7 @@ function renderNotas(){
   const fStatus=(el("nf-f-status")||{}).value||"";
   const fSearch=(el("nf-f-search")||{}).value||"";
   const sorted=[...state.invoices]
-    .filter(n=>(!fStatus||n.status===fStatus)&&(!fSearch||n.number.toLowerCase().includes(fSearch.toLowerCase())||getClient(n.clientId)?.name.toLowerCase().includes(fSearch.toLowerCase())))
+    .filter(n=>(!fStatus||n.status===fStatus)&&(!fSearch||norm(n.number).includes(norm(fSearch))||norm(getClient(n.clientId)?.name).includes(norm(fSearch))))
     .sort((a,b)=>b.date.localeCompare(a.date));
   el("content").innerHTML=`
     <div class="section-header">
@@ -950,7 +951,6 @@ function openNFModal(){
 function nfRenderProdList(search){
   const listEl=el("nf-prod-list");
   if(!listEl) return;
-  const norm=s=>s.normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase();
   const q=norm(search||"");
   const prods=state.products.filter(p=>!q||norm(p.name).includes(q)||(p.sku&&norm(p.sku).includes(q)));
   if(!prods.length){ listEl.innerHTML=`<div style="padding:14px;text-align:center;color:var(--muted);font-size:13px">Nenhum produto encontrado</div>`; return; }
@@ -2031,10 +2031,10 @@ function renderPedidos(){
       <table class="table">
         <thead><tr><th>Número</th><th>Data</th><th>Cliente</th><th>Itens</th><th>Total</th><th>Status</th><th>Ações</th></tr></thead>
         <tbody>${(()=>{
-          const q=(el("ped-search")||{value:""}).value.toLowerCase();
+          const q=norm((el("ped-search")||{value:""}).value);
           const filtered=list.filter(o=>{
             const c=getClient(o.clientId);
-            return !q||o.number.toLowerCase().includes(q)||(c&&c.name.toLowerCase().includes(q));
+            return !q||norm(o.number).includes(q)||(c&&norm(c.name).includes(q));
           }).sort((a,b)=>b.id-a.id);
           if(!filtered.length) return `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px">Nenhum pedido encontrado</td></tr>`;
           return filtered.map(o=>{
@@ -2118,7 +2118,6 @@ function openPedidoModal(prefill){
 function pedidoRenderProdList(search){
   const listEl=el("ped-prod-list");
   if(!listEl) return;
-  const norm=s=>s.normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase();
   const q=norm(search||"");
   const prods=state.products.filter(p=>!q||norm(p.name).includes(q)||(p.sku&&norm(p.sku).includes(q)));
   if(!prods.length){ listEl.innerHTML=`<div style="padding:14px;text-align:center;color:var(--muted);font-size:13px">Nenhum produto encontrado</div>`; return; }
@@ -2340,10 +2339,10 @@ function renderDevolucoes(){
       <table class="table">
         <thead><tr><th>Número</th><th>Data</th><th>NF Origem</th><th>Cliente</th><th>Itens</th><th>Total</th><th>Motivo</th></tr></thead>
         <tbody>${(()=>{
-          const q=(el("dev-search")||{value:""}).value.toLowerCase();
+          const q=norm((el("dev-search")||{value:""}).value);
           const filtered=list.filter(d=>{
             const c=getClient(d.clientId);
-            return !q||d.number.toLowerCase().includes(q)||(d.nfNumber&&d.nfNumber.toLowerCase().includes(q))||(c&&c.name.toLowerCase().includes(q));
+            return !q||norm(d.number).includes(q)||(d.nfNumber&&norm(d.nfNumber).includes(q))||(c&&norm(c.name).includes(q));
           }).sort((a,b)=>b.id-a.id);
           if(!filtered.length) return `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px">Nenhuma devolução registrada</td></tr>`;
           return filtered.map(d=>{
