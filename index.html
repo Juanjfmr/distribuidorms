@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>DistribuiMS — Gestão Empresarial</title>
+<title>2R Comércio — Gestão Empresarial</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <script type="module">
 // ─── FIREBASE SDK ─────────────────────────────────────────────────────────────
@@ -246,7 +246,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
 <body>
 <div id="sidebar">
   <div class="logo">
-    <div class="logo-title">DistribuiMS</div>
+    <div class="logo-title">2R Comércio</div>
     <div class="logo-sub">GESTÃO EMPRESARIAL</div>
   </div>
   <nav id="nav">
@@ -292,7 +292,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
 // ─── STATE ───────────────────────────────────────────────────────────────────
 const STORAGE_KEY = "distribuidorms_v2";
 const defaultState = {
-  company:{ name:"DistribuiMS", cnpj:"", address:"", city:"", uf:"MS", phone:"", email:"" },
+  company:{ name:"2R Comércio", cnpj:"", address:"", city:"", uf:"MS", phone:"", email:"" },
   products:[
     {id:1,code:"PRD001",name:"Água Mineral 500ml",category:"Bebidas",unit:"CX",salePrice:18.50,costPrice:10.00,stock:240,minStock:50,priceHistory:[{date:"2026-01-01",salePrice:18.50,costPrice:10.00,note:"Cadastro inicial"}]},
     {id:2,code:"PRD002",name:"Refrigerante Cola 2L",category:"Bebidas",unit:"CX",salePrice:72.00,costPrice:48.00,stock:80,minStock:20,priceHistory:[{date:"2026-01-01",salePrice:72.00,costPrice:48.00,note:"Cadastro inicial"}]},
@@ -384,6 +384,10 @@ const totalIn = (txs) => (txs||state.transactions).filter(t=>t.type==="entrada")
 const totalOut = (txs) => (txs||state.transactions).filter(t=>t.type==="saida").reduce((s,t)=>s+t.amount,0);
 const isOverdue = dueDate => dueDate < today();
 const norm = s => (s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase();
+let _saving = false;
+let _nfSort = {col:"date", dir:"desc"};
+function _guardSave(){ if(_saving) return false; _saving=true; return true; }
+function _doneSave(){ _saving=false; }
 const CAT_PROD=["Bebidas","Alimentos","Limpeza","Higiene","Outros"];
 const UNITS=["UN","CX","DZ","PCT","KG","LT","MT"];
 const PAY_TERMS=["À Vista","30 dias","30/60","30/60/90"];
@@ -553,11 +557,11 @@ function printNF(id){
   ${recs.map(r=>`<tr><td>${r.installment}/${r.total}</td><td>${fmtDate(r.dueDate)}</td><td>R$ ${fmtNum(r.amount)}</td><td>${r.status.toUpperCase()}</td></tr>`).join("")}
   </tbody></table>`:recs.length===1?`<div>Vencimento: ${fmtDate(recs[0].dueDate)} — R$ ${fmtNum(recs[0].amount)}</div>`:""}
   </div>
-  <div class="footer">Documento gerado pelo sistema DistribuiMS em ${fmtDate(today())}</div>
+  <div class="footer">Documento gerado pelo sistema 2R Comércio em ${fmtDate(today())}</div>
   </div><!-- #app -->
 <div id="login-screen">
   <div class="login-box">
-    <div class="login-logo">DistribuiMS</div>
+    <div class="login-logo">2R Comércio</div>
     <div class="login-sub">GESTÃO EMPRESARIAL</div>
     <div class="login-err" id="login-err">E-mail ou senha incorretos.</div>
     <div class="form-group">
@@ -715,6 +719,7 @@ function saveProd(id){
     state.products.push({id:uid(),code:el("f-code").value,name,category:el("f-cat").value,unit:el("f-unit").value,salePrice:newSale,costPrice:newCost,stock:parseInt(el("f-stock").value)||0,minStock:parseInt(el("f-min").value)||0,priceHistory:[{date:today(),salePrice:newSale,costPrice:newCost,note:"Cadastro inicial"}]});
   }
   saveState(); closeModal(); renderProdutos();
+  showSyncStatus(id?"✓ Produto atualizado":"✓ Produto cadastrado");
 }
 function deleteProd(id){
   if(!confirm("Remover produto?")) return;
@@ -810,6 +815,7 @@ function saveClient(id){
   if(id) state.clients=state.clients.map(c=>c.id===id?{...obj,id}:c);
   else state.clients.push({...obj,id:uid()});
   saveState(); closeModal(); renderClientes();
+  showSyncStatus(id?"✓ Cliente atualizado":"✓ Cliente cadastrado");
 }
 function deleteClient(id){ if(confirm("Remover cliente?")){ state.clients=state.clients.filter(c=>c.id!==id); saveState(); renderClientes(); } }
 
@@ -879,6 +885,7 @@ function saveSupplier(id){
   if(id) state.suppliers=state.suppliers.map(s=>s.id===id?{...obj,id}:s);
   else state.suppliers.push({...obj,id:uid()});
   saveState(); closeModal(); renderFornecedores();
+  showSyncStatus(id?"✓ Fornecedor atualizado":"✓ Fornecedor cadastrado");
 }
 function deleteSupplier(id){ if(confirm("Remover fornecedor?")){ state.suppliers=state.suppliers.filter(s=>s.id!==id); saveState(); renderFornecedores(); } }
 // ─── NOTA FISCAL ─────────────────────────────────────────────────────────────
@@ -898,18 +905,29 @@ function renderNotas(){
         <button class="btn btn-primary" onclick="openNFModal()">+ Nova Nota Fiscal</button>
       </div>
     </div>
-    <div class="card"><table><thead><tr>
-      <th>Número</th><th>Data</th><th>Cliente</th><th>Subtotal</th><th>Desc.</th><th>Frete</th><th>Total</th><th>Pagamento</th><th>Status</th><th>Ações</th>
+    <div class="card" style="overflow-x:auto"><table><thead><tr>
+      ${[["number","Número"],["date","Data"],["clientId","Cliente"],["subtotal","Subtotal"],["","Desc."],["","Frete"],["total","Total"],["","Pagamento"],["","Status"],["","Ações"]].map(([col,lbl])=>col?`<th style="cursor:pointer;user-select:none;white-space:nowrap" onclick="nfSortBy('${col}')">${lbl} ${_nfSort.col===col?(_nfSort.dir==="asc"?"▲":"▼"):""}</th>`:`<th>${lbl}</th>`).join("")}
     </tr></thead><tbody id="nf-tbody"></tbody></table></div>`;
   filterNotas();
+}
+function nfSortBy(col){
+  if(_nfSort.col===col) _nfSort.dir=_nfSort.dir==="asc"?"desc":"asc";
+  else { _nfSort.col=col; _nfSort.dir="desc"; }
+  renderNotas();
 }
 function filterNotas(){
   const fSearch=norm((el("nf-f-search")||{}).value||"");
   const fStatus=(el("nf-f-status")||{}).value||"";
   const tbody=el("nf-tbody"); if(!tbody) return;
+  const {col,dir}=_nfSort;
   const sorted=[...state.invoices]
     .filter(n=>(!fStatus||n.status===fStatus)&&(!fSearch||norm(n.number).includes(fSearch)||norm(getClient(n.clientId)?.name).includes(fSearch)))
-    .sort((a,b)=>b.date.localeCompare(a.date));
+    .sort((a,b)=>{
+      let va=a[col]??"", vb=b[col]??"";
+      if(col==="clientId"){ va=norm(getClient(a.clientId)?.name||""); vb=norm(getClient(b.clientId)?.name||""); }
+      if(typeof va==="number") return dir==="asc"?va-vb:vb-va;
+      return dir==="asc"?String(va).localeCompare(String(vb)):String(vb).localeCompare(String(va));
+    });
   tbody.innerHTML=sorted.length?sorted.map(n=>{
     const c=getClient(n.clientId);
     const statusColor={paga:"bg-green",parcial:"bg-blue",emitida:"bg-amber",cancelada:"bg-gray"}[n.status]||"bg-gray";
@@ -926,6 +944,7 @@ function filterNotas(){
       <td><div class="row">
         <button class="btn-sm btn-amber" onclick="viewNF(${n.id})">Ver</button>
         <button class="btn-sm" onclick="printNF(${n.id})" title="Imprimir">🖨</button>
+        ${(n.status==="emitida"||n.status==="parcial")?`<button class="btn-sm" style="background:rgba(63,185,80,.15);color:var(--green);border-color:rgba(63,185,80,.3)" onclick="darBaixaNF(${n.id})">💰 Receber</button>`:""}
         ${n.status!=="cancelada"&&n.status!=="paga"?`<button class="btn-sm btn-red" onclick="cancelNF(${n.id})">Cancelar</button>`:""}
       </div></td>
     </tr>`;}).join(""):`<tr><td colspan="10" class="empty">Nenhuma nota encontrada.</td></tr>`;
@@ -1043,8 +1062,9 @@ function nfRenderItems(){
     </div>`:"";
 }
 async function emitirNF(num){
-  if(!el("nf-client").value) return alert("Selecione o cliente.");
-  if(!state.nfItems.length) return alert("Adicione pelo menos um item.");
+  if(!_guardSave()) return;
+  if(!el("nf-client").value){ _doneSave(); return alert("Selecione o cliente."); }
+  if(!state.nfItems.length){ _doneSave(); return alert("Adicione pelo menos um item."); }
   const sub=nfGetSubtotal();
   const disc=parseFloat(el("nf-disc").value)||0;
   const freight=parseFloat(el("nf-freight").value)||0;
@@ -1069,7 +1089,8 @@ async function emitirNF(num){
   state.receivables.push(...recs);
   if(terms==="À Vista") nf.status="emitida"; // stays emitida until paid
   state.invoices.push(nf);
-  await saveToFirebase(); closeModal(); renderNotas();
+  await saveToFirebase(); _doneSave(); closeModal(); filterNotas();
+  showSyncStatus("✓ Nota fiscal emitida");
 }
 function viewNF(id){
   const n=state.invoices.find(x=>x.id===id);
@@ -1249,8 +1270,9 @@ function compraRenderItems(){
     </div>`:"";
 }
 async function salvarCompra(num){
-  if(!el("cp-sup").value) return alert("Selecione o fornecedor.");
-  if(!state.compraItems.length) return alert("Adicione pelo menos um item.");
+  if(!_guardSave()) return;
+  if(!el("cp-sup").value){ _doneSave(); return alert("Selecione o fornecedor."); }
+  if(!state.compraItems.length){ _doneSave(); return alert("Adicione pelo menos um item."); }
   const freight=parseFloat(el("cp-freight").value)||0;
   const sub=state.compraItems.reduce((s,it)=>s+(it.qty*it.unitCost),0);
   const total=parseFloat((sub+freight).toFixed(2));
@@ -1276,7 +1298,8 @@ async function salvarCompra(num){
   // create payables
   const pays=generatePayables(purchase.id,num,supplierId,total,date,terms,"Compra "+num);
   state.payables.push(...pays);
-  await saveToFirebase(); closeModal(); renderCompras();
+  await saveToFirebase(); _doneSave(); closeModal(); renderCompras();
+  showSyncStatus("✓ Compra registrada");
 }
 function viewCompra(id){
   const c=state.purchases.find(x=>x.id===id);
@@ -1703,7 +1726,7 @@ function renderConfig(){
 }
 function saveConfig(){
   state.company={name:el("cfg-name").value,cnpj:el("cfg-cnpj").value,phone:el("cfg-phone").value,address:el("cfg-addr").value,city:el("cfg-city").value,uf:el("cfg-uf").value,email:el("cfg-email").value};
-  saveState(); alert("Configurações salvas!");
+  saveState(); showSyncStatus("✓ Configurações salvas"); updateTopbar();
 }
 function exportData(){
   const blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});
@@ -1731,7 +1754,7 @@ function resetData(){
   const months=["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
   const now=new Date();
   el("topbar-date").textContent=`${days[now.getDay()]}, ${now.getDate()} de ${months[now.getMonth()]} de ${now.getFullYear()}`;
-  el("sb-footer").textContent=`v2.0 · ${state.company&&state.company.name?state.company.name:"DistribuiMS"}`;
+  el("sb-footer").textContent=`v2.0 · ${state.company&&state.company.name?state.company.name:"2R Comércio"}`;
   render();
   // Force correct layout based on screen width
 })();
@@ -1818,7 +1841,7 @@ function updateTopbar() {
   const dateEl = document.getElementById('topbar-date');
   if(dateEl) dateEl.textContent=`${days[now.getDay()]}, ${now.getDate()} de ${months[now.getMonth()]} de ${now.getFullYear()}`;
   const footer = document.getElementById('sb-footer');
-  if(footer) footer.textContent=`v2.0 · ${state.company&&state.company.name?state.company.name:"DistribuiMS"}`;
+  if(footer) footer.textContent=`v2.0 · ${state.company&&state.company.name?state.company.name:"2R Comércio"}`;
 }
 
 async function doLogin() {
@@ -2046,6 +2069,58 @@ async function toggleUserActive(uid, currentlyActive) {
 }
 
 
+// ─── DAR BAIXA NF ─────────────────────────────────────────────────────────────
+function darBaixaNF(nfId){
+  const nf=state.invoices.find(n=>n.id==nfId);
+  if(!nf) return;
+  const recs=state.receivables.filter(r=>r.invoiceId===nf.id&&r.status==="aberta");
+  if(!recs.length){ alert("Não há parcelas em aberto para esta nota."); return; }
+  const c=getClient(nf.clientId);
+  showModal(`<div class="modal-title">Registrar Recebimento — ${nf.number}</div>
+    <div style="margin-bottom:12px;font-size:13px;color:var(--muted)">Cliente: <b style="color:var(--text)">${c?c.name:"—"}</b> &nbsp;|&nbsp; Total da NF: <b style="color:var(--amber)">${fmt(nf.total)}</b></div>
+    <div class="form-group"><label class="form-label">Data de Recebimento</label>
+      <input id="bx-date" type="date" class="form-input" value="${today()}">
+    </div>
+    <div class="divider"></div>
+    <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:10px;letter-spacing:.06em">PARCELAS EM ABERTO</div>
+    <table class="table">
+      <thead><tr><th><input type="checkbox" checked onchange="document.querySelectorAll('.bx-chk').forEach(c=>c.checked=this.checked)"></th><th>Parcela</th><th>Vencimento</th><th>Valor</th></tr></thead>
+      <tbody>${recs.map(r=>`<tr>
+        <td><input type="checkbox" class="bx-chk" data-id="${r.id}" checked></td>
+        <td style="color:var(--muted)">${r.installment}/${r.total}</td>
+        <td style="color:${isOverdue(r.dueDate)?"var(--red)":"var(--text)"}">${fmtDate(r.dueDate)}${isOverdue(r.dueDate)?" ⚠":""}</td>
+        <td style="color:var(--amber);font-weight:600">${fmt(r.amount)}</td>
+      </tr>`).join("")}</tbody>
+    </table>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" style="background:var(--green)" onclick="confirmarBaixa(${nf.id})">✓ Confirmar Recebimento</button>
+    </div>`);
+}
+async function confirmarBaixa(nfId){
+  if(!_guardSave()) return;
+  const payDate=el("bx-date").value||today();
+  const chks=document.querySelectorAll(".bx-chk:checked");
+  if(!chks.length){ _doneSave(); alert("Selecione ao menos uma parcela."); return; }
+  let totalRecebido=0;
+  chks.forEach(chk=>{
+    const r=state.receivables.find(x=>x.id==chk.dataset.id);
+    if(r&&r.status==="aberta"){
+      r.status="paga"; r.paidAt=payDate;
+      totalRecebido+=r.amount;
+      state.transactions.push({id:uid(),date:payDate,type:"entrada",category:"Vendas",description:`Recebimento ${r.installment}/${r.total} — ${r.invoiceNumber||"NF"}`,amount:r.amount});
+    }
+  });
+  const nfRecs=state.receivables.filter(x=>x.invoiceId===nfId&&x.status!=="cancelada");
+  const allPaid=nfRecs.every(x=>x.status==="paga");
+  const anyPaid=nfRecs.some(x=>x.status==="paga");
+  const nf=state.invoices.find(x=>x.id===nfId);
+  if(nf) nf.status=allPaid?"paga":anyPaid?"parcial":"emitida";
+  await saveToFirebase(); _doneSave();
+  closeModal(); filterNotas();
+  showSyncStatus(`✓ Recebimento de ${fmt(totalRecebido)} registrado no caixa`);
+}
+
 // ─── NF PRODUCT FILTER — alias (mantido por compatibilidade) ─────────────────
 function nfFilterProds(search){ nfRenderProdList(search); }
 
@@ -2204,7 +2279,8 @@ function pedidoRenderItems(){
   totEl.innerHTML=`<div style="text-align:right;font-size:13px;color:var(--muted)">Subtotal: <b style="color:var(--text)">${fmt(sub)}</b> &nbsp; Desconto: <b style="color:var(--red)">-${fmt(discAmt)}</b> &nbsp; Frete: <b style="color:var(--text)">+${fmt(freight)}</b> &nbsp; <span style="font-size:15px;font-weight:700;color:var(--amber)">Total: ${fmt(total)}</span></div>`;
 }
 async function salvarPedido(num, confirmar=false){
-  if(!state.pedidoItems.length){ alert("Adicione pelo menos um item ao pedido."); return; }
+  if(!_guardSave()) return;
+  if(!state.pedidoItems.length){ _doneSave(); alert("Adicione pelo menos um item ao pedido."); return; }
   const clientId=parseInt(el("ped-client").value)||0;
   const disc=parseFloat(el("ped-disc").value)||0;
   const freight=parseFloat(el("ped-freight").value)||0;
@@ -2222,9 +2298,9 @@ async function salvarPedido(num, confirmar=false){
   if(!state.orders) state.orders=[];
   state.orders.push(order);
   state.pedidoItems=[];
-  await saveToFirebase();
+  await saveToFirebase(); _doneSave();
   closeModal(); renderPedidos();
-  showSyncStatus("✓ Pedido salvo");
+  showSyncStatus(confirmar?"✓ Pedido confirmado":"✓ Pedido salvo como rascunho");
 }
 async function confirmarPedido(id){
   const o=state.orders.find(x=>x.id==id);
@@ -2292,13 +2368,13 @@ function faturarPedido(id){
   nfRenderProdList("");
 }
 async function emitirNFdePedido(nfNum, pedidoId){
-  // Emit NF and mark pedido as faturado — reuse emitirNF logic
+  if(!_guardSave()) return;
   const clientId=parseInt(el("nf-client").value)||0;
   const terms=el("nf-terms").value;
   const disc=parseFloat(el("nf-disc").value)||0;
   const freight=parseFloat(el("nf-freight").value)||0;
   const date=el("nf-date").value||today();
-  if(!state.nfItems.length){ alert("Adicione pelo menos um item."); return; }
+  if(!state.nfItems.length){ _doneSave(); alert("Adicione pelo menos um item."); return; }
   const sub=nfGetSubtotal();
   const discAmt=sub*disc/100;
   const total=sub-discAmt+freight;
@@ -2320,8 +2396,8 @@ async function emitirNFdePedido(nfNum, pedidoId){
   const o=state.orders.find(x=>x.id==pedidoId);
   if(o){ o.status="faturado"; o.invoiceId=inv.id; }
   state.nfItems=[];
-  await saveToFirebase();
-  closeModal(); renderNotas();
+  await saveToFirebase(); _doneSave();
+  closeModal(); filterNotas();
   showSyncStatus("✓ NF emitida e pedido faturado");
 }
 function viewPedido(id){
@@ -2422,8 +2498,9 @@ function openDevolucaoModal(nfId){
     </div>`);
 }
 async function salvarDevolucao(nfId){
+  if(!_guardSave()) return;
   const nf=state.invoices.find(n=>n.id==nfId);
-  if(!nf) return;
+  if(!nf){ _doneSave(); return; }
   const chks=document.querySelectorAll(".dev-item-chk");
   const qtys=document.querySelectorAll(".dev-item-qty");
   const devItems=[];
@@ -2438,7 +2515,7 @@ async function salvarDevolucao(nfId){
       }
     }
   });
-  if(!devItems.length){ alert("Selecione ao menos um item para devolver."); return; }
+  if(!devItems.length){ _doneSave(); alert("Selecione ao menos um item para devolver."); return; }
   const reason=el("dev-reason").value.trim();
   const date=el("dev-date").value||today();
   const total=devItems.reduce((s,it)=>s+it.total,0);
@@ -2457,7 +2534,7 @@ async function salvarDevolucao(nfId){
   // Credit note in caixa
   if(!state.transactions) state.transactions=[];
   state.transactions.push({id:Date.now()+2,date,type:"entrada",category:"Devolução",description:`Devolução ${devNum} — NF ${nf.number}`,amount:total});
-  await saveToFirebase();
+  await saveToFirebase(); _doneSave();
   closeModal();
   showSyncStatus("✓ Devolução registrada, estoque restaurado");
   renderDevolucoes();
@@ -2555,7 +2632,7 @@ document.addEventListener('click',function(e){
 </div><!-- #app -->
 <div id="login-screen">
   <div class="login-box">
-    <div class="login-logo">DistribuiMS</div>
+    <div class="login-logo">2R Comércio</div>
     <div class="login-sub">GESTÃO EMPRESARIAL</div>
     <div class="login-err" id="login-err">E-mail ou senha incorretos.</div>
     <div class="form-group">
