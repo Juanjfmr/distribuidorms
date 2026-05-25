@@ -756,25 +756,34 @@ function renderClientes(){
   el("content").innerHTML=`
     <div class="section-header">
       <div class="section-title">Clientes</div>
-      <button class="btn btn-primary" onclick="openClientModal()">+ Novo Cliente</button>
+      <div class="row">
+        <input id="cli-search" class="form-input" style="width:200px" placeholder="Buscar cliente..." oninput="filterClientes()">
+        <button class="btn btn-primary" onclick="openClientModal()">+ Novo Cliente</button>
+      </div>
     </div>
-    <div class="card"><table><thead><tr><th>Nome</th><th>CNPJ/CPF</th><th>Cidade</th><th>Telefone</th><th>Limite Crédito</th><th>Situação</th><th></th></tr></thead><tbody>
-      ${state.clients.map(c=>{
-        const openRecs=state.receivables.filter(r=>r.clientId===c.id&&r.status==="aberta");
-        const openAmt=openRecs.reduce((s,r)=>s+r.amount,0);
-        const overdue=openRecs.some(r=>isOverdue(r.dueDate));
-        return`<tr>
-          <td class="text-white fw-bold">${c.name}</td>
-          <td class="mono">${c.cnpj||"—"}</td>
-          <td>${c.city||"—"}</td><td>${c.phone||"—"}</td>
-          <td class="mono">${fmt(c.creditLimit||0)}</td>
-          <td><span class="badge ${overdue?"bg-red":openAmt>0?"bg-amber":"bg-green"}">${overdue?"Inadimplente":openAmt>0?"Em aberto: "+fmt(openAmt):"Em dia"}</span></td>
-          <td><div class="row">
-            <button class="btn-sm btn-amber" onclick="openClientModal(${c.id})">Editar</button>
-            <button class="btn-sm" onclick="deleteClient(${c.id})">✕</button>
-          </div></td>
-        </tr>`}).join("")}
-    </tbody></table></div>`;
+    <div class="card"><table><thead><tr><th>Nome</th><th>CNPJ/CPF</th><th>Cidade</th><th>Telefone</th><th>Limite Crédito</th><th>Situação</th><th></th></tr></thead>
+    <tbody id="cli-tbody"></tbody></table></div>`;
+  filterClientes();
+}
+function filterClientes(){
+  const q=norm((el("cli-search")||{}).value||"");
+  const tbody=el("cli-tbody"); if(!tbody) return;
+  const list=state.clients.filter(c=>!q||norm(c.name).includes(q)||norm(c.cnpj).includes(q)||norm(c.city).includes(q));
+  tbody.innerHTML=list.length?list.map(c=>{
+    const openRecs=state.receivables.filter(r=>r.clientId===c.id&&r.status==="aberta");
+    const openAmt=openRecs.reduce((s,r)=>s+r.amount,0);
+    const overdue=openRecs.some(r=>isOverdue(r.dueDate));
+    return`<tr>
+      <td class="text-white fw-bold">${c.name}</td>
+      <td class="mono">${c.cnpj||"—"}</td>
+      <td>${c.city||"—"}</td><td>${c.phone||"—"}</td>
+      <td class="mono">${fmt(c.creditLimit||0)}</td>
+      <td><span class="badge ${overdue?"bg-red":openAmt>0?"bg-amber":"bg-green"}">${overdue?"Inadimplente":openAmt>0?"Em aberto: "+fmt(openAmt):"Em dia"}</span></td>
+      <td><div class="row">
+        <button class="btn-sm btn-amber" onclick="openClientModal(${c.id})">Editar</button>
+        <button class="btn-sm" onclick="deleteClient(${c.id})">✕</button>
+      </div></td>
+    </tr>`;}).join(""):`<tr><td colspan="7" class="empty">Nenhum cliente encontrado.</td></tr>`;
 }
 function openClientModal(id){
   const c=id?state.clients.find(x=>x.id===id):null;
@@ -809,25 +818,34 @@ function renderFornecedores(){
   el("content").innerHTML=`
     <div class="section-header">
       <div class="section-title">Fornecedores</div>
-      <button class="btn btn-primary" onclick="openSupplierModal()">+ Novo Fornecedor</button>
+      <div class="row">
+        <input id="forn-search" class="form-input" style="width:200px" placeholder="Buscar fornecedor..." oninput="filterFornecedores()">
+        <button class="btn btn-primary" onclick="openSupplierModal()">+ Novo Fornecedor</button>
+      </div>
     </div>
-    <div class="card"><table><thead><tr><th>Nome</th><th>CNPJ</th><th>Cidade</th><th>Contato</th><th>Prazo Pagamento</th><th>Compras</th><th></th></tr></thead><tbody>
-      ${state.suppliers.map(s=>{
-        const comps=state.purchases.filter(p=>p.supplierId===s.id);
-        const vol=comps.reduce((a,c)=>a+c.total,0);
-        return`<tr>
-          <td class="text-white fw-bold">${s.name}</td>
-          <td class="mono">${s.cnpj||"—"}</td>
-          <td>${s.city||"—"}</td>
-          <td>${s.contact||"—"}</td>
-          <td><span class="badge bg-blue">${s.paymentDays||"—"} dias</span></td>
-          <td class="mono">${comps.length} · ${fmt(vol)}</td>
-          <td><div class="row">
-            <button class="btn-sm btn-amber" onclick="openSupplierModal(${s.id})">Editar</button>
-            <button class="btn-sm btn-red" onclick="deleteSupplier(${s.id})">✕</button>
-          </div></td>
-        </tr>`}).join("")||`<tr><td colspan="7" class="empty">Nenhum fornecedor.</td></tr>`}
-    </tbody></table></div>`;
+    <div class="card"><table><thead><tr><th>Nome</th><th>CNPJ</th><th>Cidade</th><th>Contato</th><th>Prazo Pagamento</th><th>Compras</th><th></th></tr></thead>
+    <tbody id="forn-tbody"></tbody></table></div>`;
+  filterFornecedores();
+}
+function filterFornecedores(){
+  const q=norm((el("forn-search")||{}).value||"");
+  const tbody=el("forn-tbody"); if(!tbody) return;
+  const list=state.suppliers.filter(s=>!q||norm(s.name).includes(q)||norm(s.cnpj).includes(q)||norm(s.city).includes(q)||norm(s.contact).includes(q));
+  tbody.innerHTML=list.length?list.map(s=>{
+    const comps=state.purchases.filter(p=>p.supplierId===s.id);
+    const vol=comps.reduce((a,c)=>a+c.total,0);
+    return`<tr>
+      <td class="text-white fw-bold">${s.name}</td>
+      <td class="mono">${s.cnpj||"—"}</td>
+      <td>${s.city||"—"}</td>
+      <td>${s.contact||"—"}</td>
+      <td><span class="badge bg-blue">${s.paymentDays||"—"} dias</span></td>
+      <td class="mono">${comps.length} · ${fmt(vol)}</td>
+      <td><div class="row">
+        <button class="btn-sm btn-amber" onclick="openSupplierModal(${s.id})">Editar</button>
+        <button class="btn-sm btn-red" onclick="deleteSupplier(${s.id})">✕</button>
+      </div></td>
+    </tr>`;}).join(""):`<tr><td colspan="7" class="empty">Nenhum fornecedor encontrado.</td></tr>`;
 }
 function openSupplierModal(id){
   const s=id?state.suppliers.find(x=>x.id===id):null;
@@ -865,49 +883,52 @@ function saveSupplier(id){
 function deleteSupplier(id){ if(confirm("Remover fornecedor?")){ state.suppliers=state.suppliers.filter(s=>s.id!==id); saveState(); renderFornecedores(); } }
 // ─── NOTA FISCAL ─────────────────────────────────────────────────────────────
 function renderNotas(){
-  const fStatus=(el("nf-f-status")||{}).value||"";
-  const fSearch=(el("nf-f-search")||{}).value||"";
-  const sorted=[...state.invoices]
-    .filter(n=>(!fStatus||n.status===fStatus)&&(!fSearch||norm(n.number).includes(norm(fSearch))||norm(getClient(n.clientId)?.name).includes(norm(fSearch))))
-    .sort((a,b)=>b.date.localeCompare(a.date));
   el("content").innerHTML=`
     <div class="section-header">
       <div class="section-title">Notas Fiscais</div>
       <div class="row">
-        <input id="nf-f-search" class="form-input" style="width:160px" placeholder="Buscar NF/cliente..." value="${fSearch}" oninput="renderNotas()">
-        <select id="nf-f-status" class="form-input" style="width:130px" onchange="renderNotas()">
+        <input id="nf-f-search" class="form-input" style="width:160px" placeholder="Buscar NF/cliente..." oninput="filterNotas()">
+        <select id="nf-f-status" class="form-input" style="width:130px" onchange="filterNotas()">
           <option value="">Todos status</option>
-          <option value="emitida"${fStatus==="emitida"?" selected":""}>Emitida</option>
-          <option value="paga"${fStatus==="paga"?" selected":""}>Paga</option>
-          <option value="parcial"${fStatus==="parcial"?" selected":""}>Parcial</option>
-          <option value="cancelada"${fStatus==="cancelada"?" selected":""}>Cancelada</option>
+          <option value="emitida">Emitida</option>
+          <option value="paga">Paga</option>
+          <option value="parcial">Parcial</option>
+          <option value="cancelada">Cancelada</option>
         </select>
         <button class="btn btn-primary" onclick="openNFModal()">+ Nova Nota Fiscal</button>
       </div>
     </div>
     <div class="card"><table><thead><tr>
       <th>Número</th><th>Data</th><th>Cliente</th><th>Subtotal</th><th>Desc.</th><th>Frete</th><th>Total</th><th>Pagamento</th><th>Status</th><th>Ações</th>
-    </tr></thead><tbody>
-    ${sorted.map(n=>{
-      const c=getClient(n.clientId);
-      const statusColor={paga:"bg-green",parcial:"bg-blue",emitida:"bg-amber",cancelada:"bg-gray"}[n.status]||"bg-gray";
-      return`<tr class="${n.status==="cancelada"?"cancelled-row":""}">
-        <td class="mono text-amber">${n.number}</td>
-        <td>${fmtDate(n.date)}</td>
-        <td class="text-white">${c?c.name:"—"}</td>
-        <td class="mono">${fmt(n.subtotal)}</td>
-        <td class="mono">${n.discount>0?n.discount+"%":"—"}</td>
-        <td class="mono">${n.freight>0?fmt(n.freight):"—"}</td>
-        <td class="mono fw-bold">${fmt(n.total)}</td>
-        <td><span class="badge bg-blue" style="font-size:10px">${n.paymentTerms}</span></td>
-        <td><span class="badge ${statusColor}">${n.status}</span></td>
-        <td><div class="row">
-          <button class="btn-sm btn-amber" onclick="viewNF(${n.id})">Ver</button>
-          <button class="btn-sm" onclick="printNF(${n.id})" title="Imprimir">🖨</button>
-          ${n.status!=="cancelada"&&n.status!=="paga"?`<button class="btn-sm btn-red" onclick="cancelNF(${n.id})">Cancelar</button>`:""}
-        </div></td>
-      </tr>`;}).join("")}
-    </tbody></table></div>`;
+    </tr></thead><tbody id="nf-tbody"></tbody></table></div>`;
+  filterNotas();
+}
+function filterNotas(){
+  const fSearch=norm((el("nf-f-search")||{}).value||"");
+  const fStatus=(el("nf-f-status")||{}).value||"";
+  const tbody=el("nf-tbody"); if(!tbody) return;
+  const sorted=[...state.invoices]
+    .filter(n=>(!fStatus||n.status===fStatus)&&(!fSearch||norm(n.number).includes(fSearch)||norm(getClient(n.clientId)?.name).includes(fSearch)))
+    .sort((a,b)=>b.date.localeCompare(a.date));
+  tbody.innerHTML=sorted.length?sorted.map(n=>{
+    const c=getClient(n.clientId);
+    const statusColor={paga:"bg-green",parcial:"bg-blue",emitida:"bg-amber",cancelada:"bg-gray"}[n.status]||"bg-gray";
+    return`<tr class="${n.status==="cancelada"?"cancelled-row":""}">
+      <td class="mono text-amber">${n.number}</td>
+      <td>${fmtDate(n.date)}</td>
+      <td class="text-white">${c?c.name:"—"}</td>
+      <td class="mono">${fmt(n.subtotal)}</td>
+      <td class="mono">${n.discount>0?n.discount+"%":"—"}</td>
+      <td class="mono">${n.freight>0?fmt(n.freight):"—"}</td>
+      <td class="mono fw-bold">${fmt(n.total)}</td>
+      <td><span class="badge bg-blue" style="font-size:10px">${n.paymentTerms}</span></td>
+      <td><span class="badge ${statusColor}">${n.status}</span></td>
+      <td><div class="row">
+        <button class="btn-sm btn-amber" onclick="viewNF(${n.id})">Ver</button>
+        <button class="btn-sm" onclick="printNF(${n.id})" title="Imprimir">🖨</button>
+        ${n.status!=="cancelada"&&n.status!=="paga"?`<button class="btn-sm btn-red" onclick="cancelNF(${n.id})">Cancelar</button>`:""}
+      </div></td>
+    </tr>`;}).join(""):`<tr><td colspan="10" class="empty">Nenhuma nota encontrada.</td></tr>`;
 }
 
 function openNFModal(){
@@ -1114,28 +1135,38 @@ async function cancelNF(id){
 
 // ─── COMPRAS ─────────────────────────────────────────────────────────────────
 function renderCompras(){
-  const sorted=[...state.purchases].sort((a,b)=>b.date.localeCompare(a.date));
   el("content").innerHTML=`
     <div class="section-header">
       <div class="section-title">Ordens de Compra</div>
-      <button class="btn btn-primary" onclick="openCompraModal()">+ Nova Compra</button>
+      <div class="row">
+        <input id="comp-search" class="form-input" style="width:200px" placeholder="Buscar compra/fornecedor..." oninput="filterCompras()">
+        <button class="btn btn-primary" onclick="openCompraModal()">+ Nova Compra</button>
+      </div>
     </div>
     <div class="card"><table><thead><tr>
       <th>Número</th><th>Data</th><th>Fornecedor</th><th>Frete</th><th>Total</th><th>Pagamento</th><th>Status</th><th></th>
-    </tr></thead><tbody>
-      ${sorted.map(c=>{
-        const sup=getSupplier(c.supplierId);
-        return`<tr>
-          <td class="mono text-amber">${c.number}</td>
-          <td>${fmtDate(c.date)}</td>
-          <td class="text-white">${sup?sup.name:"—"}</td>
-          <td class="mono">${c.freight>0?fmt(c.freight):"—"}</td>
-          <td class="mono fw-bold">${fmt(c.total)}</td>
-          <td><span class="badge bg-blue" style="font-size:10px">${c.paymentTerms}</span></td>
-          <td><span class="badge ${c.status==="recebida"?"bg-green":"bg-amber"}">${c.status}</span></td>
-          <td><div class="row"><button class="btn-sm btn-amber" onclick="viewCompra(${c.id})">Ver</button></div></td>
-        </tr>`}).join("")||`<tr><td colspan="8" class="empty">Nenhuma compra registrada.</td></tr>`}
-    </tbody></table></div>`;
+    </tr></thead><tbody id="comp-tbody"></tbody></table></div>`;
+  filterCompras();
+}
+function filterCompras(){
+  const tbody=el("comp-tbody"); if(!tbody) return;
+  const q=norm((el("comp-search")||{value:""}).value);
+  const filtered=[...state.purchases].filter(c=>{
+    const sup=getSupplier(c.supplierId);
+    return !q||norm(c.number).includes(q)||(sup&&norm(sup.name).includes(q));
+  }).sort((a,b)=>b.date.localeCompare(a.date));
+  tbody.innerHTML=filtered.length?filtered.map(c=>{
+    const sup=getSupplier(c.supplierId);
+    return`<tr>
+      <td class="mono text-amber">${c.number}</td>
+      <td>${fmtDate(c.date)}</td>
+      <td class="text-white">${sup?sup.name:"—"}</td>
+      <td class="mono">${c.freight>0?fmt(c.freight):"—"}</td>
+      <td class="mono fw-bold">${fmt(c.total)}</td>
+      <td><span class="badge bg-blue" style="font-size:10px">${c.paymentTerms}</span></td>
+      <td><span class="badge ${c.status==="recebida"?"bg-green":"bg-amber"}">${c.status}</span></td>
+      <td><div class="row"><button class="btn-sm btn-amber" onclick="viewCompra(${c.id})">Ver</button></div></td>
+    </tr>`;}).join(""):`<tr><td colspan="8" class="empty">Nenhuma compra encontrada.</td></tr>`;
 }
 function openCompraModal(){
   state.compraItems=[];
@@ -2020,52 +2051,47 @@ function nfFilterProds(search){ nfRenderProdList(search); }
 
 // ─── PEDIDOS DE VENDA ─────────────────────────────────────────────────────────
 function renderPedidos(){
-  const list=state.orders||[];
-  const statusLabel={rascunho:"Rascunho",confirmado:"Confirmado",faturado:"Faturado",cancelado:"Cancelado"};
-  const statusColor={rascunho:"var(--muted)",confirmado:"var(--blue)",faturado:"var(--green)",cancelado:"var(--red)"};
   el("content").innerHTML=`
     <div class="section-header">
       <div class="section-title">Pedidos de Venda</div>
       <div class="row">
-        <input id="ped-search" class="form-input" style="width:200px" placeholder="Buscar pedido..." oninput="renderPedidos()">
+        <input id="ped-search" class="form-input" style="width:200px" placeholder="Buscar pedido..." oninput="filterPedidos()">
         <button class="btn btn-primary" onclick="openPedidoModal()">+ Novo Pedido</button>
       </div>
     </div>
     <div class="card" style="overflow-x:auto">
       <table class="table">
         <thead><tr><th>Número</th><th>Data</th><th>Cliente</th><th>Itens</th><th>Total</th><th>Status</th><th>Ações</th></tr></thead>
-        <tbody>${(()=>{
-          const q=norm((el("ped-search")||{value:""}).value);
-          const filtered=list.filter(o=>{
-            const c=getClient(o.clientId);
-            return !q||norm(o.number).includes(q)||(c&&norm(c.name).includes(q));
-          }).sort((a,b)=>b.id-a.id);
-          if(!filtered.length) return `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px">Nenhum pedido encontrado</td></tr>`;
-          return filtered.map(o=>{
-            const c=getClient(o.clientId);
-            return `<tr>
-              <td><span class="badge">${o.number}</span></td>
-              <td>${fmtDate(o.date)}</td>
-              <td>${c?c.name:"—"}</td>
-              <td>${o.items.length} item(s)</td>
-              <td>${fmt(o.total)}</td>
-              <td><span style="color:${statusColor[o.status]||"var(--muted)"}">${statusLabel[o.status]||o.status}</span></td>
-              <td>
-                <div class="row" style="gap:4px">
-                  <button class="btn btn-ghost" style="padding:4px 8px;font-size:12px" onclick="viewPedido('${o.id}')">Ver</button>
-                  ${o.status==="rascunho"?`<button class="btn btn-primary" style="padding:4px 8px;font-size:12px" onclick="confirmarPedido('${o.id}')">Confirmar</button>`:""}
-                  ${o.status==="confirmado"?`<button class="btn btn-primary" style="padding:4px 8px;font-size:12px;background:var(--green)" onclick="faturarPedido('${o.id}')">Faturar</button>`:""}
-                  ${o.status==="rascunho"||o.status==="confirmado"?`<button class="btn btn-ghost" style="padding:4px 8px;font-size:12px;color:var(--red)" onclick="cancelarPedido('${o.id}')">Cancelar</button>`:""}
-                </div>
-              </td>
-            </tr>`;
-          }).join("");
-        })()}</tbody>
+        <tbody id="ped-tbody"></tbody>
       </table>
     </div>`;
-  // re-attach search event since innerHTML was replaced
-  const si=el("ped-search");
-  if(si) si.addEventListener("input",()=>renderPedidos());
+  filterPedidos();
+}
+function filterPedidos(){
+  const tbody=el("ped-tbody"); if(!tbody) return;
+  const q=norm((el("ped-search")||{value:""}).value);
+  const statusLabel={rascunho:"Rascunho",confirmado:"Confirmado",faturado:"Faturado",cancelado:"Cancelado"};
+  const statusColor={rascunho:"var(--muted)",confirmado:"var(--blue)",faturado:"var(--green)",cancelado:"var(--red)"};
+  const filtered=(state.orders||[]).filter(o=>{
+    const c=getClient(o.clientId);
+    return !q||norm(o.number).includes(q)||(c&&norm(c.name).includes(q));
+  }).sort((a,b)=>b.id-a.id);
+  tbody.innerHTML=filtered.length?filtered.map(o=>{
+    const c=getClient(o.clientId);
+    return `<tr>
+      <td><span class="badge">${o.number}</span></td>
+      <td>${fmtDate(o.date)}</td>
+      <td>${c?c.name:"—"}</td>
+      <td>${o.items.length} item(s)</td>
+      <td>${fmt(o.total)}</td>
+      <td><span style="color:${statusColor[o.status]||"var(--muted)"}">${statusLabel[o.status]||o.status}</span></td>
+      <td><div class="row" style="gap:4px">
+        <button class="btn btn-ghost" style="padding:4px 8px;font-size:12px" onclick="viewPedido('${o.id}')">Ver</button>
+        ${o.status==="rascunho"?`<button class="btn btn-primary" style="padding:4px 8px;font-size:12px" onclick="confirmarPedido('${o.id}')">Confirmar</button>`:""}
+        ${o.status==="confirmado"?`<button class="btn btn-primary" style="padding:4px 8px;font-size:12px;background:var(--green)" onclick="faturarPedido('${o.id}')">Faturar</button>`:""}
+        ${o.status==="rascunho"||o.status==="confirmado"?`<button class="btn btn-ghost" style="padding:4px 8px;font-size:12px;color:var(--red)" onclick="cancelarPedido('${o.id}')">Cancelar</button>`:""}
+      </div></td>
+    </tr>`;}).join(""):`<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px">Nenhum pedido encontrado</td></tr>`;
 }
 
 function openPedidoModal(prefill){
@@ -2328,12 +2354,11 @@ function viewPedido(id){
 
 // ─── DEVOLUÇÕES ───────────────────────────────────────────────────────────────
 function renderDevolucoes(){
-  const list=state.returns||[];
   el("content").innerHTML=`
     <div class="section-header">
       <div class="section-title">Controle de Devoluções</div>
       <div class="row">
-        <input id="dev-search" class="form-input" style="width:200px" placeholder="Buscar devolução..." oninput="renderDevolucoes()">
+        <input id="dev-search" class="form-input" style="width:200px" placeholder="Buscar devolução..." oninput="filterDevolucoes()">
       </div>
     </div>
     <div style="margin-bottom:16px;padding:12px;background:var(--bg2);border-radius:8px;border:1px solid var(--border);font-size:13px;color:var(--muted)">
@@ -2342,28 +2367,29 @@ function renderDevolucoes(){
     <div class="card" style="overflow-x:auto">
       <table class="table">
         <thead><tr><th>Número</th><th>Data</th><th>NF Origem</th><th>Cliente</th><th>Itens</th><th>Total</th><th>Motivo</th></tr></thead>
-        <tbody>${(()=>{
-          const q=norm((el("dev-search")||{value:""}).value);
-          const filtered=list.filter(d=>{
-            const c=getClient(d.clientId);
-            return !q||norm(d.number).includes(q)||(d.nfNumber&&norm(d.nfNumber).includes(q))||(c&&norm(c.name).includes(q));
-          }).sort((a,b)=>b.id-a.id);
-          if(!filtered.length) return `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px">Nenhuma devolução registrada</td></tr>`;
-          return filtered.map(d=>{
-            const c=getClient(d.clientId);
-            return `<tr>
-              <td><span class="badge">${d.number}</span></td>
-              <td>${fmtDate(d.date)}</td>
-              <td><span class="badge" style="background:var(--bg2)">${d.nfNumber||"—"}</span></td>
-              <td>${c?c.name:"—"}</td>
-              <td>${d.items.length} item(s)</td>
-              <td style="color:var(--amber)">${fmt(d.total)}</td>
-              <td style="color:var(--muted);font-size:12px">${d.reason||"—"}</td>
-            </tr>`;
-          }).join("");
-        })()}</tbody>
+        <tbody id="dev-tbody"></tbody>
       </table>
     </div>`;
+  filterDevolucoes();
+}
+function filterDevolucoes(){
+  const tbody=el("dev-tbody"); if(!tbody) return;
+  const q=norm((el("dev-search")||{value:""}).value);
+  const filtered=(state.returns||[]).filter(d=>{
+    const c=getClient(d.clientId);
+    return !q||norm(d.number).includes(q)||(d.nfNumber&&norm(d.nfNumber).includes(q))||(c&&norm(c.name).includes(q));
+  }).sort((a,b)=>b.id-a.id);
+  tbody.innerHTML=filtered.length?filtered.map(d=>{
+    const c=getClient(d.clientId);
+    return `<tr>
+      <td><span class="badge">${d.number}</span></td>
+      <td>${fmtDate(d.date)}</td>
+      <td><span class="badge" style="background:var(--bg2)">${d.nfNumber||"—"}</span></td>
+      <td>${c?c.name:"—"}</td>
+      <td>${d.items.length} item(s)</td>
+      <td style="color:var(--amber)">${fmt(d.total)}</td>
+      <td style="color:var(--muted);font-size:12px">${d.reason||"—"}</td>
+    </tr>`;}).join(""):`<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px">Nenhuma devolução registrada</td></tr>`;
 }
 function openDevolucaoModal(nfId){
   const nf=state.invoices.find(n=>n.id==nfId);
