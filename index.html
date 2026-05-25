@@ -255,8 +255,10 @@ tr:hover td{background:rgba(255,255,255,.015)}
     <div class="nav-item" onclick="navigate('produtos')" data-view="produtos"><span>⊞</span> Produtos</div>
     <div class="nav-item" onclick="navigate('clientes')" data-view="clientes"><span>◎</span> Clientes</div>
     <div class="nav-item" onclick="navigate('fornecedores')" data-view="fornecedores"><span>◫</span> Fornecedores</div>
+    <div class="nav-item" onclick="navigate('pedidos')" data-view="pedidos"><span>📋</span> Pedidos</div>
     <div class="nav-sep"></div>
     <div class="nav-item" onclick="navigate('notas')" data-view="notas"><span>◈</span> Nota Fiscal</div>
+    <div class="nav-item" onclick="navigate('devolucoes')" data-view="devolucoes"><span>↩</span> Devoluções</div>
     <div class="nav-item" onclick="navigate('compras')" data-view="compras"><span>↓</span> Compras</div>
     <div class="nav-item" onclick="navigate('contas')" data-view="contas"><span>◉</span> Contas</div>
     <div class="nav-sep"></div>
@@ -338,7 +340,8 @@ const defaultState = {
     {id:4,date:"2026-05-03",productId:2,type:"entrada",qty:50,reason:"Compra",reference:"CP-0001"},
   ],
   currentView:"dashboard", contasTab:"receber", cashFilter:"todos",
-  nfItems:[], compraItems:[], relPeriod:"all",
+  nfItems:[], compraItems:[], pedidoItems:[], relPeriod:"all", relTab:"geral",
+  orders:[], returns:[],
 };
 
 let state = {};
@@ -355,12 +358,14 @@ function loadState(){
     if(!state.receivables) state.receivables=[];
     if(!state.payables) state.payables=[];
     if(!state.company) state.company=defaultState.company;
-    state.nfItems=[]; state.compraItems=[];
+    if(!state.orders) state.orders=[];
+    if(!state.returns) state.returns=[];
+    state.nfItems=[]; state.compraItems=[]; state.pedidoItems=[];
   }catch(e){ state = JSON.parse(JSON.stringify(defaultState)); }
 }
 function saveState(){
   const toSave = Object.assign({},state);
-  delete toSave.nfItems; delete toSave.compraItems;
+  delete toSave.nfItems; delete toSave.compraItems; delete toSave.pedidoItems;
   localStorage.setItem(STORAGE_KEY,JSON.stringify(toSave));
 }
 
@@ -417,10 +422,11 @@ function showModal(html,large){
   el("modal-box").innerHTML=html;
   el("modal").style.display="flex";
 }
-function closeModal(){ el("modal").style.display="none"; state.nfItems=[]; state.compraItems=[]; }
+function closeModal(){ el("modal").style.display="none"; state.nfItems=[]; state.compraItems=[]; state.pedidoItems=[]; }
+const openModal = showModal;
 
 // ─── NAVIGATION ──────────────────────────────────────────────────────────────
-const PAGE_TITLES={dashboard:"Dashboard",produtos:"Produtos",clientes:"Clientes",fornecedores:"Fornecedores",notas:"Nota Fiscal",compras:"Compras",contas:"Contas",caixa:"Fluxo de Caixa",relatorios:"Relatórios",config:"Configurações"};
+const PAGE_TITLES={dashboard:"Dashboard",produtos:"Produtos",clientes:"Clientes",fornecedores:"Fornecedores",pedidos:"Pedidos de Venda",notas:"Nota Fiscal",devolucoes:"Devoluções",compras:"Compras",contas:"Contas",caixa:"Fluxo de Caixa",relatorios:"Relatórios",config:"Configurações"};
 function navigate(v){
   state.currentView=v;
   document.querySelectorAll(".nav-item").forEach(n=>n.classList.toggle("active",n.dataset.view===v));
@@ -428,7 +434,7 @@ function navigate(v){
   render();
 }
 function render(){
-  ({dashboard:renderDashboard,produtos:renderProdutos,clientes:renderClientes,fornecedores:renderFornecedores,notas:renderNotas,compras:renderCompras,contas:renderContas,caixa:renderCaixa,relatorios:renderRelatorios,config:renderConfig,usuarios:renderUsuarios})[state.currentView]();
+  ({dashboard:renderDashboard,produtos:renderProdutos,clientes:renderClientes,fornecedores:renderFornecedores,pedidos:renderPedidos,notas:renderNotas,devolucoes:renderDevolucoes,compras:renderCompras,contas:renderContas,caixa:renderCaixa,relatorios:renderRelatorios,config:renderConfig,usuarios:renderUsuarios})[state.currentView]();
   applyRoleUI();
 }
 
@@ -613,12 +619,30 @@ function renderDashboard(){
 // ─── PRODUTOS ────────────────────────────────────────────────────────────────
 function renderProdutos(){
   const search=(el("prod-search")||{}).value||"";
-  const filtered=state.products.filter(p=>p.name.toLowerCase().includes(search.toLowerCase())||p.code.toLowerCase().includes(search.toLowerCase()));
+  const filterCat=(el("prod-filter-cat")||{}).value||"";
+  const filterStock=(el("prod-filter-stock")||{}).value||"";
+  const cats=[...new Set(state.products.map(p=>p.category))].sort();
+  const filtered=state.products.filter(p=>{
+    const mS=!search||p.name.toLowerCase().includes(search.toLowerCase())||p.code.toLowerCase().includes(search.toLowerCase());
+    const mC=!filterCat||p.category===filterCat;
+    const mK=!filterStock||(filterStock==="ok"&&p.stock>p.minStock)||(filterStock==="baixo"&&p.stock>0&&p.stock<=p.minStock)||(filterStock==="zerado"&&p.stock===0);
+    return mS&&mC&&mK;
+  });
   el("content").innerHTML=`
     <div class="section-header">
       <div class="section-title">Catálogo de Produtos</div>
       <div class="row">
-        <input id="prod-search" class="form-input" style="width:220px" placeholder="Buscar..." value="${search}" oninput="renderProdutos()">
+        <input id="prod-search" class="form-input" style="width:160px" placeholder="Buscar..." value="${search}" oninput="renderProdutos()">
+        <select id="prod-filter-cat" class="form-input" style="width:130px" onchange="renderProdutos()">
+          <option value="">Categoria</option>
+          ${cats.map(c=>`<option value="${c}"${filterCat===c?" selected":""}>${c}</option>`).join("")}
+        </select>
+        <select id="prod-filter-stock" class="form-input" style="width:130px" onchange="renderProdutos()">
+          <option value="">Estoque</option>
+          <option value="ok"${filterStock==="ok"?" selected":""}>OK</option>
+          <option value="baixo"${filterStock==="baixo"?" selected":""}>Baixo</option>
+          <option value="zerado"${filterStock==="zerado"?" selected":""}>Zerado</option>
+        </select>
         <button class="btn btn-primary" onclick="openProdModal()">+ Novo Produto</button>
       </div>
     </div>
@@ -836,11 +860,25 @@ function saveSupplier(id){
 function deleteSupplier(id){ if(confirm("Remover fornecedor?")){ state.suppliers=state.suppliers.filter(s=>s.id!==id); saveState(); renderFornecedores(); } }
 // ─── NOTA FISCAL ─────────────────────────────────────────────────────────────
 function renderNotas(){
-  const sorted=[...state.invoices].sort((a,b)=>b.date.localeCompare(a.date));
+  const fStatus=(el("nf-f-status")||{}).value||"";
+  const fSearch=(el("nf-f-search")||{}).value||"";
+  const sorted=[...state.invoices]
+    .filter(n=>(!fStatus||n.status===fStatus)&&(!fSearch||n.number.toLowerCase().includes(fSearch.toLowerCase())||getClient(n.clientId)?.name.toLowerCase().includes(fSearch.toLowerCase())))
+    .sort((a,b)=>b.date.localeCompare(a.date));
   el("content").innerHTML=`
     <div class="section-header">
       <div class="section-title">Notas Fiscais</div>
-      <button class="btn btn-primary" onclick="openNFModal()">+ Nova Nota Fiscal</button>
+      <div class="row">
+        <input id="nf-f-search" class="form-input" style="width:160px" placeholder="Buscar NF/cliente..." value="${fSearch}" oninput="renderNotas()">
+        <select id="nf-f-status" class="form-input" style="width:130px" onchange="renderNotas()">
+          <option value="">Todos status</option>
+          <option value="emitida"${fStatus==="emitida"?" selected":""}>Emitida</option>
+          <option value="paga"${fStatus==="paga"?" selected":""}>Paga</option>
+          <option value="parcial"${fStatus==="parcial"?" selected":""}>Parcial</option>
+          <option value="cancelada"${fStatus==="cancelada"?" selected":""}>Cancelada</option>
+        </select>
+        <button class="btn btn-primary" onclick="openNFModal()">+ Nova Nota Fiscal</button>
+      </div>
     </div>
     <div class="card"><table><thead><tr>
       <th>Número</th><th>Data</th><th>Cliente</th><th>Subtotal</th><th>Desc.</th><th>Frete</th><th>Total</th><th>Pagamento</th><th>Status</th><th>Ações</th>
@@ -896,14 +934,17 @@ function openNFModal(){
     </div>
     <div class="divider"></div>
     <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:10px;letter-spacing:.06em">ITENS DA NOTA</div>
-    <div class="row" style="margin-bottom:10px">
-      <select id="nf-prod" class="form-input" style="flex:1">
-        <option value="">Selecione produto...</option>
-        ${state.products.map(p=>`<option value="${p.id}">${p.name} (${p.unit}) — ${fmt(p.salePrice)}</option>`).join("")}
-      </select>
-      <input id="nf-qty" type="number" min="1" class="form-input" style="width:80px" placeholder="Qtd" value="1">
-      <input id="nf-item-disc" type="number" min="0" max="100" class="form-input" style="width:70px" placeholder="Desc%" value="0">
-      <button class="btn btn-primary" onclick="nfAddItem()">+ Add</button>
+    <div style="margin-bottom:10px">
+      <input id="nf-prod-search" class="form-input" style="width:100%;margin-bottom:6px" placeholder="🔍 Buscar produto pelo nome..." oninput="nfFilterProds(this.value)">
+      <div class="row">
+        <select id="nf-prod" class="form-input" style="flex:1">
+          <option value="">Selecione produto...</option>
+          ${state.products.map(p=>`<option value="${p.id}">${p.name} (${p.unit}) — ${fmt(p.salePrice)}</option>`).join("")}
+        </select>
+        <input id="nf-qty" type="number" min="1" class="form-input" style="width:80px" placeholder="Qtd" value="1">
+        <input id="nf-item-disc" type="number" min="0" max="100" class="form-input" style="width:70px" placeholder="Desc%" value="0">
+        <button class="btn btn-primary" onclick="nfAddItem()">+ Add</button>
+      </div>
     </div>
     <div id="nf-items-list"></div>
     <div id="nf-totals"></div>
@@ -1030,7 +1071,8 @@ function viewNF(id){
     </tbody></table></div>`:""}
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal()">Fechar</button>
-      ${n.status!=="cancelada"&&n.status!=="paga"?`<button class="btn btn-danger" onclick="cancelNF(${n.id});closeModal()">Cancelar NF</button>`:""}
+      ${(n.status==="emitida"||n.status==="paga"||n.status==="parcial")?`<button class="btn btn-ghost" onclick="openDevolucaoModal('${n.id}')">↩ Devolver</button>`:""}
+      ${n.status!=="cancelada"&&n.status!=="paga"?`<button class="btn btn-danger" onclick="cancelNF('${n.id}');closeModal()">Cancelar NF</button>`:""}
     </div>`,true);
 }
 async function cancelNF(id){
@@ -1223,9 +1265,11 @@ function renderContas(){
   const overdueRec=recAbertas.filter(r=>isOverdue(r.dueDate));
   const overduePay=payAbertas.filter(p=>isOverdue(p.dueDate));
 
+  const fOverdue=(el("contas-f-overdue")||{}).checked||false;
   let tableHTML="";
   if(tab==="receber"){
-    const sorted=[...state.receivables].sort((a,b)=>a.dueDate.localeCompare(b.dueDate));
+    let sorted=[...state.receivables].sort((a,b)=>a.dueDate.localeCompare(b.dueDate));
+    if(fOverdue) sorted=sorted.filter(r=>isOverdue(r.dueDate)&&r.status==="aberta");
     tableHTML=`
       <table><thead><tr><th>Nota</th><th>Parcela</th><th>Cliente</th><th>Vencimento</th><th>Valor</th><th>Status</th><th></th></tr></thead><tbody>
         ${sorted.map(r=>{const c=getClient(r.clientId);const overdue=isOverdue(r.dueDate)&&r.status==="aberta";return`<tr>
@@ -1239,7 +1283,8 @@ function renderContas(){
         </tr>`}).join("")||`<tr><td colspan="7" class="empty">Nenhum lançamento.</td></tr>`}
       </tbody></table>`;
   } else {
-    const sorted=[...state.payables].sort((a,b)=>a.dueDate.localeCompare(b.dueDate));
+    let sorted=[...state.payables].sort((a,b)=>a.dueDate.localeCompare(b.dueDate));
+    if(fOverdue) sorted=sorted.filter(p=>isOverdue(p.dueDate)&&p.status==="aberta");
     tableHTML=`
       <table><thead><tr><th>Compra</th><th>Parcela</th><th>Fornecedor</th><th>Vencimento</th><th>Valor</th><th>Status</th><th></th></tr></thead><tbody>
         ${sorted.map(p=>{const s=getSupplier(p.supplierId);const overdue=isOverdue(p.dueDate)&&p.status==="aberta";return`<tr>
@@ -1265,9 +1310,14 @@ function renderContas(){
         <div class="kpi-sub">${payAbertas.length} parcelas · ${overduePay.length} vencida(s)</div>
       </div>
     </div>
-    <div class="tabs">
-      <div class="tab ${tab==="receber"?"active":""}" onclick="state.contasTab='receber';renderContas()">A Receber (${recAbertas.length})</div>
-      <div class="tab ${tab==="pagar"?"active":""}" onclick="state.contasTab='pagar';renderContas()">A Pagar (${payAbertas.length})</div>
+    <div class="row-between" style="margin-bottom:12px">
+      <div class="tabs" style="margin-bottom:0;border-bottom:none">
+        <div class="tab ${tab==="receber"?"active":""}" onclick="state.contasTab='receber';renderContas()">A Receber (${recAbertas.length})</div>
+        <div class="tab ${tab==="pagar"?"active":""}" onclick="state.contasTab='pagar';renderContas()">A Pagar (${payAbertas.length})</div>
+      </div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer">
+        <input type="checkbox" id="contas-f-overdue" onchange="renderContas()" ${fOverdue?"checked":""}> Só vencidas
+      </label>
     </div>
     <div class="card">${tableHTML}</div>`;
 }
@@ -1404,6 +1454,7 @@ function getRelPeriod(){
     filter:d=>d&&d.startsWith(y+"-"+m)};
 }
 function renderRelatorios(){
+  if(state.relTab==="abc"){ renderCurvaABC(); return; }
   const {label,filter}=getRelPeriod();
   const filteredInv=state.invoices.filter(n=>n.status!=="cancelada"&&filter(n.date));
   const filteredTx=state.transactions.filter(t=>filter(t.date));
@@ -1465,6 +1516,10 @@ function renderRelatorios(){
     <div class="section-header">
       <div class="section-title">Relatórios Financeiros</div>
       <div class="row">
+        <div class="tabs" style="margin-bottom:0;border-bottom:none">
+          <div class="tab ${state.relTab==="geral"?"active":""}" onclick="state.relTab='geral';renderRelatorios()">Visão Geral</div>
+          <div class="tab ${state.relTab==="abc"?"active":""}" onclick="state.relTab='abc';renderRelatorios()">Curva ABC</div>
+        </div>
         <span class="text-muted" style="font-size:13px">Período:</span>
         <select class="form-input" style="width:160px" onchange="state.relPeriod=this.value;renderRelatorios()">
           <option value="all" ${state.relPeriod==="all"?"selected":""}>Todo o período</option>
@@ -1671,6 +1726,9 @@ async function loadFromFirebase() {
       if(!state.purchases) state.purchases=[];
       if(!state.receivables) state.receivables=[];
       if(!state.payables) state.payables=[];
+      if(!state.orders) state.orders=[];
+      if(!state.returns) state.returns=[];
+      if(!state.pedidoItems) state.pedidoItems=[];
     } else {
       // First time: load defaults
       state = JSON.parse(JSON.stringify(defaultState));
@@ -1742,8 +1800,8 @@ function saveState() {
 
 // ─── ROLES & NAV CONTROL ─────────────────────────────────────────────────────
 var ROLE_NAV = {
-  admin:        ['dashboard','produtos','clientes','fornecedores','notas','compras','contas','caixa','relatorios','config','usuarios'],
-  vendedor:     ['dashboard','produtos','clientes','fornecedores','notas','compras','contas','caixa','relatorios'],
+  admin:        ['dashboard','produtos','clientes','fornecedores','pedidos','notas','devolucoes','compras','contas','caixa','relatorios','config','usuarios'],
+  vendedor:     ['dashboard','produtos','clientes','fornecedores','pedidos','notas','devolucoes','compras','contas','caixa','relatorios'],
   visualizador: ['dashboard','relatorios'],
 };
 var ROLE_LABELS = { admin:'Admin', vendedor:'Vendedor', visualizador:'Visualizador' };
@@ -1933,6 +1991,497 @@ async function toggleUserActive(uid, currentlyActive) {
   renderUsuarios(); showSyncStatus(`✓ Usuário ${action}do`);
 }
 
+
+// ─── NF PRODUCT FILTER ───────────────────────────────────────────────────────
+function nfFilterProds(search){
+  const sel=el("nf-prod");
+  if(!sel) return;
+  const q=(search||"").toLowerCase();
+  sel.innerHTML=`<option value="">Selecione produto...</option>`+
+    state.products.filter(p=>p.name.toLowerCase().includes(q)||p.sku&&p.sku.toLowerCase().includes(q))
+      .map(p=>`<option value="${p.id}">${p.name} (${p.unit}) — ${fmt(p.salePrice)}</option>`).join("");
+}
+
+// ─── PEDIDOS DE VENDA ─────────────────────────────────────────────────────────
+function renderPedidos(){
+  const list=state.orders||[];
+  const statusLabel={rascunho:"Rascunho",confirmado:"Confirmado",faturado:"Faturado",cancelado:"Cancelado"};
+  const statusColor={rascunho:"var(--muted)",confirmado:"var(--blue)",faturado:"var(--green)",cancelado:"var(--red)"};
+  el("content").innerHTML=`
+    <div class="section-header">
+      <div class="section-title">Pedidos de Venda</div>
+      <div class="row">
+        <input id="ped-search" class="form-input" style="width:200px" placeholder="Buscar pedido..." oninput="renderPedidos()">
+        <button class="btn btn-primary" onclick="openPedidoModal()">+ Novo Pedido</button>
+      </div>
+    </div>
+    <div class="card" style="overflow-x:auto">
+      <table class="table">
+        <thead><tr><th>Número</th><th>Data</th><th>Cliente</th><th>Itens</th><th>Total</th><th>Status</th><th>Ações</th></tr></thead>
+        <tbody>${(()=>{
+          const q=(el("ped-search")||{value:""}).value.toLowerCase();
+          const filtered=list.filter(o=>{
+            const c=getClient(o.clientId);
+            return !q||o.number.toLowerCase().includes(q)||(c&&c.name.toLowerCase().includes(q));
+          }).sort((a,b)=>b.id-a.id);
+          if(!filtered.length) return `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px">Nenhum pedido encontrado</td></tr>`;
+          return filtered.map(o=>{
+            const c=getClient(o.clientId);
+            return `<tr>
+              <td><span class="badge">${o.number}</span></td>
+              <td>${fmtDate(o.date)}</td>
+              <td>${c?c.name:"—"}</td>
+              <td>${o.items.length} item(s)</td>
+              <td>${fmt(o.total)}</td>
+              <td><span style="color:${statusColor[o.status]||"var(--muted)"}">${statusLabel[o.status]||o.status}</span></td>
+              <td>
+                <div class="row" style="gap:4px">
+                  <button class="btn btn-ghost" style="padding:4px 8px;font-size:12px" onclick="viewPedido('${o.id}')">Ver</button>
+                  ${o.status==="rascunho"?`<button class="btn btn-primary" style="padding:4px 8px;font-size:12px" onclick="confirmarPedido('${o.id}')">Confirmar</button>`:""}
+                  ${o.status==="confirmado"?`<button class="btn btn-primary" style="padding:4px 8px;font-size:12px;background:var(--green)" onclick="faturarPedido('${o.id}')">Faturar</button>`:""}
+                  ${o.status==="rascunho"||o.status==="confirmado"?`<button class="btn btn-ghost" style="padding:4px 8px;font-size:12px;color:var(--red)" onclick="cancelarPedido('${o.id}')">Cancelar</button>`:""}
+                </div>
+              </td>
+            </tr>`;
+          }).join("");
+        })()}</tbody>
+      </table>
+    </div>`;
+  // re-attach search event since innerHTML was replaced
+  const si=el("ped-search");
+  if(si) si.addEventListener("input",()=>renderPedidos());
+}
+
+function openPedidoModal(prefill){
+  state.pedidoItems=prefill?[...prefill.items]:[];
+  const clients=state.clients||[];
+  const nextNum="PED-"+String((state.orders||[]).length+1).padStart(4,"0");
+  openModal(`<div class="modal-title">Novo Pedido de Venda</div>
+    <div class="form-grid-2">
+      <div class="form-group"><label class="form-label">Número</label>
+        <input id="ped-num" class="form-input" value="${nextNum}" readonly>
+      </div>
+      <div class="form-group"><label class="form-label">Data</label>
+        <input id="ped-date" type="date" class="form-input" value="${today()}">
+      </div>
+    </div>
+    <div class="form-group"><label class="form-label">Cliente</label>
+      <select id="ped-client" class="form-input">
+        <option value="">Selecione cliente...</option>
+        ${clients.map(c=>`<option value="${c.id}">${c.name}</option>`).join("")}
+      </select>
+    </div>
+    <div class="form-grid-3">
+      <div class="form-group"><label class="form-label">Condição de Pagamento</label>
+        <select id="ped-terms" class="form-input">
+          ${PAY_TERMS.map(t=>`<option>${t}</option>`).join("")}
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Desconto Geral (%)</label>
+        <input id="ped-disc" type="number" min="0" max="100" step="0.1" class="form-input" value="0" oninput="pedidoRenderItems()">
+      </div>
+      <div class="form-group"><label class="form-label">Frete (R$)</label>
+        <input id="ped-freight" type="number" min="0" step="0.01" class="form-input" value="0" oninput="pedidoRenderItems()">
+      </div>
+    </div>
+    <div class="form-group"><label class="form-label">Observações</label>
+      <textarea id="ped-notes" class="form-input" rows="2" style="resize:vertical"></textarea>
+    </div>
+    <div class="divider"></div>
+    <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:10px;letter-spacing:.06em">ITENS DO PEDIDO</div>
+    <div style="margin-bottom:10px">
+      <input id="ped-prod-search" class="form-input" style="width:100%;margin-bottom:6px" placeholder="🔍 Buscar produto pelo nome..." oninput="pedidoFilterProds(this.value)">
+      <div class="row">
+        <select id="ped-prod" class="form-input" style="flex:1">
+          <option value="">Selecione produto...</option>
+          ${state.products.map(p=>`<option value="${p.id}">${p.name} (${p.unit}) — ${fmt(p.salePrice)}</option>`).join("")}
+        </select>
+        <input id="ped-qty" type="number" min="1" class="form-input" style="width:80px" placeholder="Qtd" value="1">
+        <input id="ped-item-disc" type="number" min="0" max="100" class="form-input" style="width:70px" placeholder="Desc%" value="0">
+        <button class="btn btn-primary" onclick="pedidoAddItem()">+ Add</button>
+      </div>
+    </div>
+    <div id="ped-items-list"></div>
+    <div id="ped-totals"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-ghost" onclick="salvarPedido('${nextNum}')">Salvar Rascunho</button>
+      <button class="btn btn-primary" onclick="salvarPedido('${nextNum}',true)">Confirmar Pedido</button>
+    </div>`,true);
+  pedidoRenderItems();
+}
+function pedidoFilterProds(search){
+  const sel=el("ped-prod");
+  if(!sel) return;
+  const q=(search||"").toLowerCase();
+  sel.innerHTML=`<option value="">Selecione produto...</option>`+
+    state.products.filter(p=>p.name.toLowerCase().includes(q)||(p.sku&&p.sku.toLowerCase().includes(q)))
+      .map(p=>`<option value="${p.id}">${p.name} (${p.unit}) — ${fmt(p.salePrice)}</option>`).join("");
+}
+function pedidoAddItem(){
+  const prodId=parseInt(el("ped-prod").value);
+  const qty=parseInt(el("ped-qty").value)||1;
+  const disc=parseFloat(el("ped-item-disc").value)||0;
+  if(!prodId) return;
+  const p=getProd(prodId);
+  if(!p) return;
+  state.pedidoItems.push({productId:p.id,name:p.name,unit:p.unit,qty,price:p.salePrice,itemDiscount:disc});
+  el("ped-prod").value=""; el("ped-qty").value="1"; el("ped-item-disc").value="0";
+  pedidoRenderItems();
+}
+function pedidoRemItem(i){ state.pedidoItems.splice(i,1); pedidoRenderItems(); }
+function pedidoGetSubtotal(){ return state.pedidoItems.reduce((s,it)=>s+(it.qty*it.price*(1-(it.itemDiscount||0)/100)),0); }
+function pedidoRenderItems(){
+  const listEl=el("ped-items-list");
+  const totEl=el("ped-totals");
+  if(!listEl||!totEl) return;
+  const disc=parseFloat(el("ped-disc")?.value)||0;
+  const freight=parseFloat(el("ped-freight")?.value)||0;
+  const sub=pedidoGetSubtotal();
+  const discAmt=sub*disc/100;
+  const total=sub-discAmt+freight;
+  listEl.innerHTML=state.pedidoItems.length?`<table class="table" style="margin-bottom:8px"><thead><tr><th>Produto</th><th>Qtd</th><th>Preço</th><th>Desc%</th><th>Subtotal</th><th></th></tr></thead><tbody>${state.pedidoItems.map((it,i)=>`<tr><td>${it.name}</td><td>${it.qty} ${it.unit}</td><td>${fmt(it.price)}</td><td>${it.itemDiscount||0}%</td><td>${fmt(it.qty*it.price*(1-(it.itemDiscount||0)/100))}</td><td><button class="btn btn-ghost" style="padding:2px 6px;font-size:11px;color:var(--red)" onclick="pedidoRemItem(${i})">✕</button></td></tr>`).join("")}</tbody></table>`:"<p style='color:var(--muted);font-size:13px;text-align:center;padding:12px 0'>Nenhum item adicionado</p>";
+  totEl.innerHTML=`<div style="text-align:right;font-size:13px;color:var(--muted)">Subtotal: <b style="color:var(--text)">${fmt(sub)}</b> &nbsp; Desconto: <b style="color:var(--red)">-${fmt(discAmt)}</b> &nbsp; Frete: <b style="color:var(--text)">+${fmt(freight)}</b> &nbsp; <span style="font-size:15px;font-weight:700;color:var(--amber)">Total: ${fmt(total)}</span></div>`;
+}
+async function salvarPedido(num, confirmar=false){
+  if(!state.pedidoItems.length){ alert("Adicione pelo menos um item ao pedido."); return; }
+  const clientId=parseInt(el("ped-client").value)||0;
+  const disc=parseFloat(el("ped-disc").value)||0;
+  const freight=parseFloat(el("ped-freight").value)||0;
+  const sub=pedidoGetSubtotal();
+  const total=sub*(1-disc/100)+freight;
+  const order={
+    id:Date.now(), number:num,
+    date:el("ped-date").value||today(),
+    clientId, paymentTerms:el("ped-terms").value,
+    discount:disc, freight, notes:el("ped-notes").value,
+    items:[...state.pedidoItems],
+    subtotal:sub, total,
+    status:confirmar?"confirmado":"rascunho"
+  };
+  if(!state.orders) state.orders=[];
+  state.orders.push(order);
+  state.pedidoItems=[];
+  await saveToFirebase();
+  closeModal(); renderPedidos();
+  showSyncStatus("✓ Pedido salvo");
+}
+async function confirmarPedido(id){
+  const o=state.orders.find(x=>x.id==id);
+  if(!o) return;
+  if(!confirm("Confirmar pedido "+o.number+"?")) return;
+  o.status="confirmado";
+  await saveToFirebase(); renderPedidos();
+}
+async function cancelarPedido(id){
+  const o=state.orders.find(x=>x.id==id);
+  if(!o) return;
+  if(!confirm("Cancelar pedido "+o.number+"?")) return;
+  o.status="cancelado";
+  await saveToFirebase(); renderPedidos();
+}
+function faturarPedido(id){
+  const o=state.orders.find(x=>x.id==id);
+  if(!o) return;
+  // Pre-fill NF modal with order items and client
+  state.nfItems=o.items.map(it=>({productId:it.productId,qty:it.qty,price:it.price,itemDiscount:it.itemDiscount||0}));
+  const clients=state.clients||[];
+  const invoices=state.invoices||[];
+  const nextNum="NF-"+String(invoices.length+1).padStart(4,"0");
+  openModal(`<div class="modal-title">Emitir NF — Pedido ${o.number}</div>
+    <div class="form-grid-2">
+      <div class="form-group"><label class="form-label">Número NF</label>
+        <input id="nf-num" class="form-input" value="${nextNum}" readonly>
+      </div>
+      <div class="form-group"><label class="form-label">Data Emissão</label>
+        <input id="nf-date" type="date" class="form-input" value="${today()}">
+      </div>
+    </div>
+    <div class="form-group"><label class="form-label">Cliente</label>
+      <select id="nf-client" class="form-input">
+        <option value="">Selecione cliente...</option>
+        ${clients.map(c=>`<option value="${c.id}" ${c.id==o.clientId?"selected":""}>${c.name}</option>`).join("")}
+      </select>
+    </div>
+    <div class="form-grid-3">
+      <div class="form-group"><label class="form-label">Condição de Pagamento</label>
+        <select id="nf-terms" class="form-input">
+          ${PAY_TERMS.map(t=>`<option ${t===o.paymentTerms?"selected":""}>${t}</option>`).join("")}
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Desconto Geral (%)</label>
+        <input id="nf-disc" type="number" min="0" max="100" step="0.1" class="form-input" value="${o.discount||0}" oninput="nfUpdateTotals()">
+      </div>
+      <div class="form-group"><label class="form-label">Frete (R$)</label>
+        <input id="nf-freight" type="number" min="0" step="0.01" class="form-input" value="${o.freight||0}" oninput="nfUpdateTotals()">
+      </div>
+    </div>
+    <div class="divider"></div>
+    <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:10px;letter-spacing:.06em">ITENS DA NOTA</div>
+    <div style="margin-bottom:10px">
+      <input id="nf-prod-search" class="form-input" style="width:100%;margin-bottom:6px" placeholder="🔍 Buscar produto pelo nome..." oninput="nfFilterProds(this.value)">
+      <div class="row">
+        <select id="nf-prod" class="form-input" style="flex:1">
+          <option value="">Selecione produto...</option>
+          ${state.products.map(p=>`<option value="${p.id}">${p.name} (${p.unit}) — ${fmt(p.salePrice)}</option>`).join("")}
+        </select>
+        <input id="nf-qty" type="number" min="1" class="form-input" style="width:80px" placeholder="Qtd" value="1">
+        <input id="nf-item-disc" type="number" min="0" max="100" class="form-input" style="width:70px" placeholder="Desc%" value="0">
+        <button class="btn btn-primary" onclick="nfAddItem()">+ Add</button>
+      </div>
+    </div>
+    <div id="nf-items-list"></div>
+    <div id="nf-totals"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="emitirNFdePedido('${nextNum}','${o.id}')">Emitir Nota</button>
+    </div>`,true);
+  nfRenderItems();
+}
+async function emitirNFdePedido(nfNum, pedidoId){
+  // Emit NF and mark pedido as faturado — reuse emitirNF logic
+  const clientId=parseInt(el("nf-client").value)||0;
+  const terms=el("nf-terms").value;
+  const disc=parseFloat(el("nf-disc").value)||0;
+  const freight=parseFloat(el("nf-freight").value)||0;
+  const date=el("nf-date").value||today();
+  if(!state.nfItems.length){ alert("Adicione pelo menos um item."); return; }
+  const sub=nfGetSubtotal();
+  const discAmt=sub*disc/100;
+  const total=sub-discAmt+freight;
+  const inv={id:Date.now(),number:nfNum,date,clientId,paymentTerms:terms,discount:disc,freight,items:[...state.nfItems],subtotal:sub,total,status:"emitida"};
+  state.invoices.push(inv);
+  // Decrement stock
+  inv.items.forEach(it=>{
+    const p=getProd(it.productId);
+    if(p){ p.stock-=it.qty; if(p.stock<0) p.stock=0; }
+  });
+  // Stock movement
+  if(!state.stockMovements) state.stockMovements=[];
+  inv.items.forEach(it=>{ state.stockMovements.push({date,productId:it.productId,type:"saida",qty:it.qty,ref:nfNum}); });
+  // Receivable
+  if(!state.receivables) state.receivables=[];
+  const recs2=generateReceivables(inv.id,nfNum,clientId,total,date,terms);
+  state.receivables.push(...recs2);
+  // Mark pedido as faturado
+  const o=state.orders.find(x=>x.id==pedidoId);
+  if(o){ o.status="faturado"; o.invoiceId=inv.id; }
+  state.nfItems=[];
+  await saveToFirebase();
+  closeModal(); renderNotas();
+  showSyncStatus("✓ NF emitida e pedido faturado");
+}
+function viewPedido(id){
+  const o=state.orders.find(x=>x.id==id);
+  if(!o) return;
+  const c=getClient(o.clientId);
+  const statusLabel={rascunho:"Rascunho",confirmado:"Confirmado",faturado:"Faturado",cancelado:"Cancelado"};
+  openModal(`<div class="modal-title">Pedido ${o.number}</div>
+    <div class="form-grid-2" style="margin-bottom:12px">
+      <div><span class="text-muted">Data:</span> ${fmtDate(o.date)}</div>
+      <div><span class="text-muted">Status:</span> ${statusLabel[o.status]||o.status}</div>
+      <div><span class="text-muted">Cliente:</span> ${c?c.name:"—"}</div>
+      <div><span class="text-muted">Pagamento:</span> ${o.paymentTerms||"—"}</div>
+    </div>
+    <table class="table" style="margin-bottom:12px">
+      <thead><tr><th>Produto</th><th>Qtd</th><th>Preço</th><th>Desc%</th><th>Total</th></tr></thead>
+      <tbody>${o.items.map(it=>`<tr><td>${it.name||it.productId}</td><td>${it.qty} ${it.unit||""}</td><td>${fmt(it.price)}</td><td>${it.itemDiscount||0}%</td><td>${fmt(it.qty*it.price*(1-(it.itemDiscount||0)/100))}</td></tr>`).join("")}</tbody>
+    </table>
+    <div style="text-align:right;font-size:13px">
+      Subtotal: <b>${fmt(o.subtotal)}</b> &nbsp;
+      Desconto: <b style="color:var(--red)">-${fmt(o.subtotal*(o.discount||0)/100)}</b> &nbsp;
+      Frete: <b>+${fmt(o.freight||0)}</b> &nbsp;
+      <span style="font-size:15px;font-weight:700;color:var(--amber)">Total: ${fmt(o.total)}</span>
+    </div>
+    ${o.notes?`<div style="margin-top:12px;color:var(--muted);font-size:13px">Obs: ${o.notes}</div>`:""}
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Fechar</button>
+    </div>`);
+}
+
+// ─── DEVOLUÇÕES ───────────────────────────────────────────────────────────────
+function renderDevolucoes(){
+  const list=state.returns||[];
+  el("content").innerHTML=`
+    <div class="section-header">
+      <div class="section-title">Controle de Devoluções</div>
+      <div class="row">
+        <input id="dev-search" class="form-input" style="width:200px" placeholder="Buscar devolução..." oninput="renderDevolucoes()">
+      </div>
+    </div>
+    <div style="margin-bottom:16px;padding:12px;background:var(--bg2);border-radius:8px;border:1px solid var(--border);font-size:13px;color:var(--muted)">
+      Para registrar uma devolução, acesse <b style="color:var(--text)">Nota Fiscal</b>, encontre a NF emitida e clique em <b style="color:var(--amber)">Devolução</b>.
+    </div>
+    <div class="card" style="overflow-x:auto">
+      <table class="table">
+        <thead><tr><th>Número</th><th>Data</th><th>NF Origem</th><th>Cliente</th><th>Itens</th><th>Total</th><th>Motivo</th></tr></thead>
+        <tbody>${(()=>{
+          const q=(el("dev-search")||{value:""}).value.toLowerCase();
+          const filtered=list.filter(d=>{
+            const c=getClient(d.clientId);
+            return !q||d.number.toLowerCase().includes(q)||(d.nfNumber&&d.nfNumber.toLowerCase().includes(q))||(c&&c.name.toLowerCase().includes(q));
+          }).sort((a,b)=>b.id-a.id);
+          if(!filtered.length) return `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px">Nenhuma devolução registrada</td></tr>`;
+          return filtered.map(d=>{
+            const c=getClient(d.clientId);
+            return `<tr>
+              <td><span class="badge">${d.number}</span></td>
+              <td>${fmtDate(d.date)}</td>
+              <td><span class="badge" style="background:var(--bg2)">${d.nfNumber||"—"}</span></td>
+              <td>${c?c.name:"—"}</td>
+              <td>${d.items.length} item(s)</td>
+              <td style="color:var(--amber)">${fmt(d.total)}</td>
+              <td style="color:var(--muted);font-size:12px">${d.reason||"—"}</td>
+            </tr>`;
+          }).join("");
+        })()}</tbody>
+      </table>
+    </div>`;
+}
+function openDevolucaoModal(nfId){
+  const nf=state.invoices.find(n=>n.id==nfId);
+  if(!nf){ alert("NF não encontrada."); return; }
+  if(nf.status==="cancelada"){ alert("Não é possível devolver uma NF cancelada."); return; }
+  const c=getClient(nf.clientId);
+  openModal(`<div class="modal-title">Registrar Devolução — ${nf.number}</div>
+    <div style="margin-bottom:12px;font-size:13px;color:var(--muted)">Cliente: <b style="color:var(--text)">${c?c.name:"—"}</b> &nbsp;|&nbsp; Data NF: <b style="color:var(--text)">${fmtDate(nf.date)}</b></div>
+    <div class="form-group"><label class="form-label">Data da Devolução</label>
+      <input id="dev-date" type="date" class="form-input" value="${today()}">
+    </div>
+    <div class="form-group"><label class="form-label">Motivo</label>
+      <textarea id="dev-reason" class="form-input" rows="2" placeholder="Descreva o motivo da devolução..." style="resize:vertical"></textarea>
+    </div>
+    <div class="divider"></div>
+    <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:10px;letter-spacing:.06em">SELECIONE OS ITENS A DEVOLVER</div>
+    <table class="table">
+      <thead><tr><th><input type="checkbox" onchange="document.querySelectorAll('.dev-item-chk').forEach(c=>c.checked=this.checked)"></th><th>Produto</th><th>Qtd NF</th><th>Qtd Devolver</th></tr></thead>
+      <tbody>${nf.items.map((it,i)=>{const p=getProd(it.productId);return `<tr>
+        <td><input type="checkbox" class="dev-item-chk" data-idx="${i}" checked></td>
+        <td>${p?p.name:it.productId}</td>
+        <td>${it.qty} ${p?p.unit:""}</td>
+        <td><input type="number" class="form-input dev-item-qty" data-idx="${i}" value="${it.qty}" min="1" max="${it.qty}" style="width:80px"></td>
+      </tr>`;}).join("")}
+      </tbody>
+    </table>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarDevolucao('${nf.id}')">Registrar Devolução</button>
+    </div>`);
+}
+async function salvarDevolucao(nfId){
+  const nf=state.invoices.find(n=>n.id==nfId);
+  if(!nf) return;
+  const chks=document.querySelectorAll(".dev-item-chk");
+  const qtys=document.querySelectorAll(".dev-item-qty");
+  const devItems=[];
+  chks.forEach((chk,i)=>{
+    if(chk.checked){
+      const nfItem=nf.items[i];
+      const qty=parseInt(qtys[i].value)||0;
+      if(qty>0){
+        const p=getProd(nfItem.productId);
+        const unitPrice=nfItem.price*(1-(nfItem.itemDiscount||0)/100);
+        devItems.push({productId:nfItem.productId,name:p?p.name:nfItem.productId,unit:p?p.unit:"",qty,unitPrice,total:qty*unitPrice});
+      }
+    }
+  });
+  if(!devItems.length){ alert("Selecione ao menos um item para devolver."); return; }
+  const reason=el("dev-reason").value.trim();
+  const date=el("dev-date").value||today();
+  const total=devItems.reduce((s,it)=>s+it.total,0);
+  if(!state.returns) state.returns=[];
+  const devNum="DEV-"+String(state.returns.length+1).padStart(4,"0");
+  const dev={id:Date.now(),number:devNum,date,nfId:nf.id,nfNumber:nf.number,clientId:nf.clientId,items:devItems,reason,total};
+  state.returns.push(dev);
+  // Restore stock
+  devItems.forEach(it=>{
+    const p=getProd(it.productId);
+    if(p) p.stock+=it.qty;
+  });
+  // Stock movement
+  if(!state.stockMovements) state.stockMovements=[];
+  devItems.forEach(it=>state.stockMovements.push({date,productId:it.productId,type:"entrada",qty:it.qty,ref:devNum}));
+  // Credit note in caixa
+  if(!state.transactions) state.transactions=[];
+  state.transactions.push({id:Date.now()+2,date,type:"entrada",category:"Devolução",description:`Devolução ${devNum} — NF ${nf.number}`,amount:total});
+  await saveToFirebase();
+  closeModal();
+  showSyncStatus("✓ Devolução registrada, estoque restaurado");
+  renderDevolucoes();
+}
+
+// ─── CURVA ABC ────────────────────────────────────────────────────────────────
+function renderCurvaABC(){
+  const {label,filter}=getRelPeriod();
+  const filteredInv=state.invoices.filter(n=>n.status!=="cancelada"&&filter(n.date));
+  const byProd={};
+  filteredInv.forEach(n=>n.items.forEach(it=>{
+    const key=it.productId;
+    if(!byProd[key]) byProd[key]={productId:key,revenue:0,qty:0};
+    const val=it.qty*it.price*(1-(it.itemDiscount||0)/100);
+    byProd[key].revenue+=val;
+    byProd[key].qty+=it.qty;
+  }));
+  const arr=Object.values(byProd).sort((a,b)=>b.revenue-a.revenue);
+  const totalRev=arr.reduce((s,x)=>s+x.revenue,0);
+  let cumul=0;
+  arr.forEach(x=>{
+    x.percent=totalRev>0?(x.revenue/totalRev*100):0;
+    cumul+=x.percent;
+    x.cumulative=cumul;
+    x.curve=x.cumulative<=80?"A":x.cumulative<=95?"B":"C";
+  });
+  const months=new Set();
+  state.invoices.forEach(n=>{if(n.date) months.add(n.date.slice(0,7));});
+  state.transactions&&state.transactions.forEach(t=>{if(t.date) months.add(t.date.slice(0,7));});
+  const sortedMonths=[...months].sort().reverse();
+  el("content").innerHTML=`
+    <div class="section-header">
+      <div class="section-title">Relatórios — Curva ABC</div>
+      <div class="row">
+        <div class="tabs" style="margin-bottom:0;border-bottom:none">
+          <div class="tab ${state.relTab==="geral"?"active":""}" onclick="state.relTab='geral';renderRelatorios()">Visão Geral</div>
+          <div class="tab ${state.relTab==="abc"?"active":""}" onclick="state.relTab='abc';renderRelatorios()">Curva ABC</div>
+        </div>
+        <span class="text-muted" style="font-size:13px">Período:</span>
+        <select class="form-input" style="width:160px" onchange="state.relPeriod=this.value;renderRelatorios()">
+          <option value="all" ${state.relPeriod==="all"?"selected":""}>Todo o período</option>
+          ${sortedMonths.map(m=>{const [y,mo]=m.split("-");const ml=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"][parseInt(mo)-1];return`<option value="${m}" ${state.relPeriod===m?"selected":""}>${ml}/${y}</option>`;}).join("")}
+        </select>
+      </div>
+    </div>
+    <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="kpi"><div class="kpi-label">Classe A</div><div class="kpi-value" style="color:var(--green)">${arr.filter(x=>x.curve==="A").length} produtos</div><div class="kpi-sub">≤80% da receita</div></div>
+      <div class="kpi"><div class="kpi-label">Classe B</div><div class="kpi-value" style="color:var(--amber)">${arr.filter(x=>x.curve==="B").length} produtos</div><div class="kpi-sub">80–95% da receita</div></div>
+      <div class="kpi"><div class="kpi-label">Classe C</div><div class="kpi-value" style="color:var(--muted)">${arr.filter(x=>x.curve==="C").length} produtos</div><div class="kpi-sub">>95% da receita</div></div>
+    </div>
+    <div class="card" style="overflow-x:auto">
+      <table class="table">
+        <thead><tr><th>#</th><th>Produto</th><th>Receita</th><th>% Receita</th><th>% Acumulado</th><th>Qtd Vendida</th><th>Classe</th></tr></thead>
+        <tbody>${arr.length?arr.map((x,i)=>{
+          const p=getProd(x.productId);
+          const colorMap={A:"var(--green)",B:"var(--amber)",C:"var(--muted)"};
+          return `<tr>
+            <td style="color:var(--muted)">${i+1}</td>
+            <td>${p?p.name:x.productId}</td>
+            <td>${fmt(x.revenue)}</td>
+            <td>${x.percent.toFixed(1)}%</td>
+            <td>
+              <div style="display:flex;align-items:center;gap:8px">
+                <div style="flex:1;height:6px;background:var(--bg2);border-radius:3px;min-width:60px">
+                  <div style="height:100%;background:${colorMap[x.curve]};border-radius:3px;width:${Math.min(x.cumulative,100)}%"></div>
+                </div>
+                <span style="min-width:40px;text-align:right">${x.cumulative.toFixed(1)}%</span>
+              </div>
+            </td>
+            <td>${x.qty}</td>
+            <td><span class="badge" style="background:${colorMap[x.curve]}22;color:${colorMap[x.curve]};font-weight:700">${x.curve}</span></td>
+          </tr>`;
+        }).join(""):`<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px">Nenhuma venda no período selecionado</td></tr>`}
+        </tbody>
+      </table>
+    </div>`;
+}
 
 // ─── SIDEBAR RESPONSIVA ──────────────────────────────────────────────────────
 function toggleSidebar(){
