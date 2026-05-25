@@ -619,63 +619,62 @@ function renderDashboard(){
 
 // ─── PRODUTOS ────────────────────────────────────────────────────────────────
 function renderProdutos(){
-  const searchEl=el("prod-search");
-  const search=(searchEl&&document.activeElement===searchEl)?searchEl.value:(searchEl||{}).value||"";
-  const cursorPos=searchEl?searchEl.selectionStart:0;
-  const filterCat=(el("prod-filter-cat")||{}).value||"";
-  const filterStock=(el("prod-filter-stock")||{}).value||"";
   const cats=[...new Set(state.products.map(p=>p.category))].sort();
-  const filtered=state.products.filter(p=>{
-    const mS=!search||norm(p.name).includes(norm(search))||norm(p.code).includes(norm(search));
-    const mC=!filterCat||p.category===filterCat;
-    const mK=!filterStock||(filterStock==="ok"&&p.stock>p.minStock)||(filterStock==="baixo"&&p.stock>0&&p.stock<=p.minStock)||(filterStock==="zerado"&&p.stock===0);
-    return mS&&mC&&mK;
-  });
   el("content").innerHTML=`
     <div class="section-header">
       <div class="section-title">Catálogo de Produtos</div>
       <div class="row">
-        <input id="prod-search" class="form-input" style="width:160px" placeholder="Buscar..." value="${search}" oninput="renderProdutos()">
-        <select id="prod-filter-cat" class="form-input" style="width:130px" onchange="renderProdutos()">
+        <input id="prod-search" class="form-input" style="width:160px" placeholder="Buscar..." oninput="filterProdutos()">
+        <select id="prod-filter-cat" class="form-input" style="width:130px" onchange="filterProdutos()">
           <option value="">Categoria</option>
-          ${cats.map(c=>`<option value="${c}"${filterCat===c?" selected":""}>${c}</option>`).join("")}
+          ${cats.map(c=>`<option value="${c}">${c}</option>`).join("")}
         </select>
-        <select id="prod-filter-stock" class="form-input" style="width:130px" onchange="renderProdutos()">
+        <select id="prod-filter-stock" class="form-input" style="width:130px" onchange="filterProdutos()">
           <option value="">Estoque</option>
-          <option value="ok"${filterStock==="ok"?" selected":""}>OK</option>
-          <option value="baixo"${filterStock==="baixo"?" selected":""}>Baixo</option>
-          <option value="zerado"${filterStock==="zerado"?" selected":""}>Zerado</option>
+          <option value="ok">OK</option>
+          <option value="baixo">Baixo</option>
+          <option value="zerado">Zerado</option>
         </select>
         <button class="btn btn-primary" onclick="openProdModal()">+ Novo Produto</button>
       </div>
     </div>
     <div class="card"><table><thead><tr>
       <th>Código</th><th>Produto</th><th>Categoria</th><th>Preço Custo</th><th>Preço Venda</th><th>Margem</th><th>Estoque</th><th>Status</th><th></th>
-    </tr></thead><tbody>
-      ${filtered.length?filtered.map(p=>{
-        const margin=p.costPrice>0?((p.salePrice-p.costPrice)/p.salePrice*100):0;
-        const st=p.stock<=p.minStock?"bg-red":p.stock<=p.minStock*1.5?"bg-amber":"bg-green";
-        const stl=p.stock<=p.minStock?"Baixo":p.stock<=p.minStock*1.5?"Atenção":"OK";
-        return`<tr>
-          <td class="mono text-amber">${p.code}</td>
-          <td class="text-white fw-bold">${p.name}</td>
-          <td>${p.category}</td>
-          <td class="mono">${fmt(p.costPrice||0)}</td>
-          <td class="mono">${fmt(p.salePrice)}</td>
-          <td class="mono" style="color:${margin>=30?"var(--green)":margin>=15?"var(--amber)":"var(--red)"}">${margin.toFixed(1)}%</td>
-          <td class="mono">${p.stock} ${p.unit}</td>
-          <td><span class="badge ${st}">${stl}</span></td>
-          <td><div class="row">
-            <button class="btn-sm btn-amber" onclick="openProdModal(${p.id})">Editar</button>
-            <button class="btn-sm" onclick="viewMovements(${p.id})" title="Movimentações">📋</button>
-            <button class="btn-sm" onclick="viewPriceHistory(${p.id})" title="Histórico de preço">📈</button>
-            <button class="btn-sm btn-red" onclick="deleteProd(${p.id})">✕</button>
-          </div></td>
-        </tr>`;}).join(""):`<tr><td colspan="9" class="empty">Nenhum produto.</td></tr>`}
-    </tbody></table></div>`;
-  // Restore focus and cursor position after re-render
-  const si=el("prod-search");
-  if(si&&search){ si.focus(); try{ si.setSelectionRange(cursorPos,cursorPos); }catch(e){} }
+    </tr></thead><tbody id="prod-tbody"></tbody></table></div>`;
+  filterProdutos();
+}
+function filterProdutos(){
+  const search=(el("prod-search")||{}).value||"";
+  const filterCat=(el("prod-filter-cat")||{}).value||"";
+  const filterStock=(el("prod-filter-stock")||{}).value||"";
+  const filtered=state.products.filter(p=>{
+    const mS=!search||norm(p.name).includes(norm(search))||norm(p.code).includes(norm(search));
+    const mC=!filterCat||p.category===filterCat;
+    const mK=!filterStock||(filterStock==="ok"&&p.stock>p.minStock)||(filterStock==="baixo"&&p.stock>0&&p.stock<=p.minStock)||(filterStock==="zerado"&&p.stock===0);
+    return mS&&mC&&mK;
+  });
+  const tbody=el("prod-tbody");
+  if(!tbody) return;
+  tbody.innerHTML=filtered.length?filtered.map(p=>{
+    const margin=p.costPrice>0?((p.salePrice-p.costPrice)/p.salePrice*100):0;
+    const st=p.stock<=p.minStock?"bg-red":p.stock<=p.minStock*1.5?"bg-amber":"bg-green";
+    const stl=p.stock<=p.minStock?"Baixo":p.stock<=p.minStock*1.5?"Atenção":"OK";
+    return`<tr>
+      <td class="mono text-amber">${p.code}</td>
+      <td class="text-white fw-bold">${p.name}</td>
+      <td>${p.category}</td>
+      <td class="mono">${fmt(p.costPrice||0)}</td>
+      <td class="mono">${fmt(p.salePrice)}</td>
+      <td class="mono" style="color:${margin>=30?"var(--green)":margin>=15?"var(--amber)":"var(--red)"}">${margin.toFixed(1)}%</td>
+      <td class="mono">${p.stock} ${p.unit}</td>
+      <td><span class="badge ${st}">${stl}</span></td>
+      <td><div class="row">
+        <button class="btn-sm btn-amber" onclick="openProdModal(${p.id})">Editar</button>
+        <button class="btn-sm" onclick="viewMovements(${p.id})" title="Movimentações">📋</button>
+        <button class="btn-sm" onclick="viewPriceHistory(${p.id})" title="Histórico de preço">📈</button>
+        <button class="btn-sm btn-red" onclick="deleteProd(${p.id})">✕</button>
+      </div></td>
+    </tr>`;}).join(""):`<tr><td colspan="9" class="empty">Nenhum produto.</td></tr>`;
 }
 function openProdModal(id){
   const p=id?state.products.find(x=>x.id===id):null;
