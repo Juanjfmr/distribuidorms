@@ -1114,7 +1114,8 @@ async function emitirNF(num){
   const stockWarnings=state.nfItems.filter(it=>{const p=getProd(it.productId);return p&&p.stock<it.qty;});
   if(stockWarnings.length){
     const msg=stockWarnings.map(it=>{const p=getProd(it.productId);return `• ${p.name}: estoque ${p.stock}, pedido ${it.qty}`;}).join("\n");
-    if(!confirm(`Estoque insuficiente para:\n${msg}\n\nDeseja emitir mesmo assim?`)){ _doneSave(); return; }
+    alert(`Estoque insuficiente. Não é possível emitir a nota:\n\n${msg}`);
+    _doneSave(); return;
   }
   try{
     const nf={id:uid(),number:num,date,clientId,items:[...state.nfItems],discount:disc,freight,paymentTerms:terms,subtotal:parseFloat(sub.toFixed(2)),total,status:"emitida"};
@@ -2619,6 +2620,12 @@ async function emitirNFdePedido(nfNum, pedidoId){
   const clientCosts=costs.filter(c=>c.clientPays).reduce((s,c)=>s+(parseFloat(c.value)||0),0);
   const date=el("nf-date").value||today();
   if(!state.nfItems.length){ _doneSave(); alert("Adicione pelo menos um item."); return; }
+  const stockWarningsPed=state.nfItems.filter(it=>{const p=getProd(it.productId);return p&&p.stock<it.qty;});
+  if(stockWarningsPed.length){
+    const msg=stockWarningsPed.map(it=>{const p=getProd(it.productId);return `• ${p.name}: estoque ${p.stock}, pedido ${it.qty}`;}).join("\n");
+    alert(`Estoque insuficiente. Não é possível emitir a nota:\n\n${msg}`);
+    _doneSave(); return;
+  }
   const sub=nfGetSubtotal();
   const total=parseFloat((sub*(1-disc/100)+freight+clientCosts).toFixed(2));
   const inv={id:Date.now(),number:nfNum,date,clientId,paymentTerms:terms,discount:disc,freight,items:[...state.nfItems],subtotal:sub,total,status:"emitida"};
