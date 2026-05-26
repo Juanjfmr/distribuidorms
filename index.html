@@ -340,7 +340,7 @@ const defaultState = {
     {id:4,date:"2026-05-03",productId:2,type:"entrada",qty:50,reason:"Compra",reference:"CP-0001"},
   ],
   currentView:"dashboard", contasTab:"receber", cashFilter:"todos",
-  nfItems:[], compraItems:[], pedidoItems:[], relPeriod:"all", relTab:"geral",
+  nfItems:[], compraItems:[], pedidoItems:[], nfCosts:[], relPeriod:"all", relTab:"geral",
   orders:[], returns:[],
 };
 
@@ -360,13 +360,14 @@ function loadState(){
     if(!state.company) state.company=defaultState.company;
     if(!state.orders) state.orders=[];
     if(!state.returns) state.returns=[];
-    state.nfItems=[]; state.compraItems=[]; state.pedidoItems=[];
+    state.nfItems=[]; state.compraItems=[]; state.pedidoItems=[]; state.nfCosts=[];
   }catch(e){ state = JSON.parse(JSON.stringify(defaultState)); }
 }
 function saveState(){
   const toSave = Object.assign({},state);
-  delete toSave.nfItems; delete toSave.compraItems; delete toSave.pedidoItems;
+  delete toSave.nfItems; delete toSave.compraItems; delete toSave.pedidoItems; delete toSave.nfCosts;
   localStorage.setItem(STORAGE_KEY,JSON.stringify(toSave));
+  saveToFirebase();
 }
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -384,19 +385,31 @@ const totalIn = (txs) => (txs||state.transactions).filter(t=>t.type==="entrada")
 const totalOut = (txs) => (txs||state.transactions).filter(t=>t.type==="saida").reduce((s,t)=>s+t.amount,0);
 const isOverdue = dueDate => dueDate < today();
 const norm = s => (s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase();
+const normWords = s => norm(s).replace(/\s+/g,'');
+function prodSimilarity(a,b){
+  if(norm(a)===norm(b)) return 1;
+  if(normWords(a)===normWords(b)) return 0.95;
+  const wa=norm(a).split(/\s+/).sort().join(' '), wb=norm(b).split(/\s+/).sort().join(' ');
+  if(wa===wb) return 0.9;
+  return 0;
+}
 let _saving = false;
 let _nfSort = {col:"date", dir:"desc"};
 function _guardSave(){ if(_saving) return false; _saving=true; return true; }
 function _doneSave(){ _saving=false; }
 const CAT_PROD=["Bebidas","Alimentos","Limpeza","Higiene","Outros"];
 const UNITS=["UN","CX","DZ","PCT","KG","LT","MT"];
-const PAY_TERMS=["À Vista","30 dias","30/60","30/60/90"];
+const PAY_TERMS=["À Vista","7 dias","14 dias","21 dias","28 dias","30 dias","30/60","30/60/90"];
 const CAT_FIN={entrada:["Vendas","Outros","Financiamento","Juros"],saida:["Compras","Logística","Operacional","Salários","Impostos","Outros"]};
 
 function generateReceivables(invoiceId,invoiceNumber,clientId,total,date,terms){
   const recs=[];
   let dates=[], shares=[];
   if(terms==="À Vista"){ dates=[date]; shares=[1]; }
+  else if(terms==="7 dias"){ dates=[addDays(date,7)]; shares=[1]; }
+  else if(terms==="14 dias"){ dates=[addDays(date,14)]; shares=[1]; }
+  else if(terms==="21 dias"){ dates=[addDays(date,21)]; shares=[1]; }
+  else if(terms==="28 dias"){ dates=[addDays(date,28)]; shares=[1]; }
   else if(terms==="30 dias"){ dates=[addDays(date,30)]; shares=[1]; }
   else if(terms==="30/60"){ dates=[addDays(date,30),addDays(date,60)]; shares=[0.5,0.5]; }
   else if(terms==="30/60/90"){ dates=[addDays(date,30),addDays(date,60),addDays(date,90)]; shares=[1/3,1/3,1/3]; }
@@ -427,7 +440,7 @@ function showModal(html,large){
   el("modal-box").innerHTML=html;
   el("modal").style.display="flex";
 }
-function closeModal(){ el("modal").style.display="none"; state.nfItems=[]; state.compraItems=[]; state.pedidoItems=[]; }
+function closeModal(){ el("modal").style.display="none"; state.nfItems=[]; state.compraItems=[]; state.pedidoItems=[]; state.nfCosts=[]; }
 const openModal = showModal;
 
 // ─── NAVIGATION ──────────────────────────────────────────────────────────────
@@ -467,62 +480,7 @@ function printNF(id){
     .total-final{font-weight:bold;font-size:14px;border-top:2px solid #000}
     .footer{margin-top:20px;padding-top:12px;border-top:1px solid #ccc;font-size:10px;color:#777}
     .parcelas{margin-top:14px}
-  
-/* ─── MOBILE ─────────────────────────────────────────────────────────────── */
-.hamburger-btn{display:none;background:none;border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:16px;line-height:1}
-
-@media(max-width:900px){
-  body{overflow:hidden}
-  .hamburger-btn{display:flex!important;align-items:center;justify-content:center}
-  #sidebar{position:fixed;left:-230px;top:0;bottom:0;z-index:200;transition:left .25s ease;box-shadow:4px 0 24px rgba(0,0,0,.5);width:224px!important;flex-shrink:0}
-  #sidebar.open{left:0!important}
-  
-  #main{width:100%!important;min-width:0;flex:1}
-  #app{flex-direction:row}
-  #content{padding:14px 12px}
-  #topbar{padding:12px 16px;overflow:hidden}
-  #topbar .row{flex-wrap:nowrap;gap:6px}
-  .topbar-date{display:none}
-  #sync-status{display:none}
-  .kpi-grid{grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
-  .kpi-grid-3{grid-template-columns:1fr 1fr;gap:10px}
-  .kpi-grid-2{grid-template-columns:1fr 1fr;gap:10px}
-  .kpi{padding:14px}
-  .kpi-value{font-size:16px}
-  .kpi-label{font-size:10px}
-  .grid-2{grid-template-columns:1fr}
-  .grid-3{grid-template-columns:1fr}
-  .form-grid-2{grid-template-columns:1fr}
-  .form-grid-3{grid-template-columns:1fr}
-  .form-grid-4{grid-template-columns:1fr 1fr}
-  .card{padding:14px;overflow-x:auto;-webkit-overflow-scrolling:touch}
-  #content{width:100%;min-width:0;overflow-x:hidden}
-  .section-header{flex-wrap:wrap;gap:10px}
-  .section-header .row{flex-wrap:wrap}
-  .page-title{font-size:16px}
-  table{font-size:12px;min-width:500px}
-  th{padding:8px 10px;font-size:10px}
-  td{padding:8px 10px}
-  .modal-overlay{align-items:flex-end;padding:0}
-  .modal-box{width:100%;max-width:100%;border-radius:16px 16px 0 0;max-height:88vh;padding:20px 16px}
-  .modal-box-lg{width:100%;max-width:100%}
-  .modal-title{font-size:16px;margin-bottom:14px}
-  .tabs{gap:0;overflow-x:auto}
-  .tab{white-space:nowrap;padding:10px 14px;font-size:12px}
-  .btn{padding:9px 14px;font-size:13px}
-  .btn-sm{padding:5px 9px}
-  .alert-warn,.alert-red{font-size:11px}
-  .row.no-wrap-mobile{flex-wrap:nowrap;overflow-x:auto}
-}
-@media(max-width:480px){
-  .kpi-grid{grid-template-columns:1fr 1fr}
-  .kpi-value{font-size:14px}
-  .kpi-grid-3{grid-template-columns:1fr 1fr}
-  .section-title{font-size:14px}
-  #content{padding:10px 10px}
-  .card{padding:12px}
-}
-</style></head><body>
+  </style></head><body>
   <div class="header">
     <div><h1>${co.name||"Empresa"}</h1><div class="co-info">
       ${co.cnpj?"CNPJ: "+co.cnpj+"<br>":""}
@@ -550,35 +508,16 @@ function printNF(id){
     <tr><td>Subtotal</td><td>R$ ${fmtNum(n.subtotal)}</td></tr>
     ${n.discount>0?`<tr><td>Desconto (${n.discount}%)</td><td>- R$ ${fmtNum(n.subtotal*n.discount/100)}</td></tr>`:""}
     ${n.freight>0?`<tr><td>Frete</td><td>R$ ${fmtNum(n.freight)}</td></tr>`:""}
+    ${(n.costs||[]).filter(c=>c.clientPays&&c.value>0).map(c=>`<tr><td>${c.description||"Custo"}</td><td>R$ ${fmtNum(c.value||0)}</td></tr>`).join("")}
     <tr class="total-final"><td><b>TOTAL</b></td><td><b>R$ ${fmtNum(n.total)}</b></td></tr>
   </table></div>
+  ${n.notes?`<div class="section" style="margin-top:14px"><div class="section-label">Observações</div><div style="font-size:12px;color:#333;line-height:1.5">${n.notes}</div></div>`:""}
   <div class="parcelas"><div class="section-label">Condições de Pagamento: ${n.paymentTerms}</div>
   ${recs.length>1?`<table><thead><tr><th>Parcela</th><th>Vencimento</th><th>Valor</th><th>Status</th></tr></thead><tbody>
   ${recs.map(r=>`<tr><td>${r.installment}/${r.total}</td><td>${fmtDate(r.dueDate)}</td><td>R$ ${fmtNum(r.amount)}</td><td>${r.status.toUpperCase()}</td></tr>`).join("")}
   </tbody></table>`:recs.length===1?`<div>Vencimento: ${fmtDate(recs[0].dueDate)} — R$ ${fmtNum(recs[0].amount)}</div>`:""}
   </div>
   <div class="footer">Documento gerado pelo sistema 2R Comércio em ${fmtDate(today())}</div>
-  </div><!-- #app -->
-<div id="login-screen">
-  <div class="login-box">
-    <div class="login-logo">2R Comércio</div>
-    <div class="login-sub">GESTÃO EMPRESARIAL</div>
-    <div class="login-err" id="login-err">E-mail ou senha incorretos.</div>
-    <div class="form-group">
-      <label class="form-label">E-mail</label>
-      <input id="login-email" type="email" class="form-input" placeholder="seu@email.com">
-    </div>
-    <div class="form-group">
-      <label class="form-label">Senha</label>
-      <input id="login-pass" type="password" class="form-input" placeholder="••••••••">
-    </div>
-    <button class="btn btn-primary" style="width:100%;margin-top:8px;padding:11px" onclick="doLogin()">Entrar</button>
-    <div style="text-align:center;margin-top:14px">
-      <span style="font-size:12px;color:var(--amber);cursor:pointer;text-decoration:underline" onclick="doResetPassword()">Esqueci minha senha</span>
-    </div>
-    <div style="text-align:center;margin-top:10px;font-size:11px;color:var(--muted)">Distribuidora Martins · Sistema de Gestão</div>
-  </div>
-</div>
 </body></html>`);
   w.document.close();
   setTimeout(()=>w.print(),500);
@@ -639,6 +578,9 @@ function renderProdutos(){
           <option value="baixo">Baixo</option>
           <option value="zerado">Zerado</option>
         </select>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);cursor:pointer;white-space:nowrap">
+          <input type="checkbox" id="prod-show-inactive" onchange="filterProdutos()"> Inativos
+        </label>
         <button class="btn btn-primary" onclick="openProdModal()">+ Novo Produto</button>
       </div>
     </div>
@@ -651,7 +593,9 @@ function filterProdutos(){
   const search=(el("prod-search")||{}).value||"";
   const filterCat=(el("prod-filter-cat")||{}).value||"";
   const filterStock=(el("prod-filter-stock")||{}).value||"";
+  const showInactive=(el("prod-show-inactive")||{}).checked||false;
   const filtered=state.products.filter(p=>{
+    if(!showInactive&&p.active===false) return false;
     const mS=!search||norm(p.name).includes(norm(search))||norm(p.code).includes(norm(search));
     const mC=!filterCat||p.category===filterCat;
     const mK=!filterStock||(filterStock==="ok"&&p.stock>p.minStock)||(filterStock==="baixo"&&p.stock>0&&p.stock<=p.minStock)||(filterStock==="zerado"&&p.stock===0);
@@ -660,10 +604,11 @@ function filterProdutos(){
   const tbody=el("prod-tbody");
   if(!tbody) return;
   tbody.innerHTML=filtered.length?filtered.map(p=>{
+    const inactive=p.active===false;
     const margin=p.costPrice>0?((p.salePrice-p.costPrice)/p.salePrice*100):0;
-    const st=p.stock<=p.minStock?"bg-red":p.stock<=p.minStock*1.5?"bg-amber":"bg-green";
-    const stl=p.stock<=p.minStock?"Baixo":p.stock<=p.minStock*1.5?"Atenção":"OK";
-    return`<tr>
+    const st=inactive?"bg-gray":p.stock<=p.minStock?"bg-red":p.stock<=p.minStock*1.5?"bg-amber":"bg-green";
+    const stl=inactive?"Inativo":p.stock<=p.minStock?"Baixo":p.stock<=p.minStock*1.5?"Atenção":"OK";
+    return`<tr style="${inactive?"opacity:.5":""}">
       <td class="mono text-amber">${p.code}</td>
       <td class="text-white fw-bold">${p.name}</td>
       <td>${p.category}</td>
@@ -673,10 +618,12 @@ function filterProdutos(){
       <td class="mono">${p.stock} ${p.unit}</td>
       <td><span class="badge ${st}">${stl}</span></td>
       <td><div class="row">
-        <button class="btn-sm btn-amber" onclick="openProdModal(${p.id})">Editar</button>
-        <button class="btn-sm" onclick="viewMovements(${p.id})" title="Movimentações">📋</button>
-        <button class="btn-sm" onclick="viewPriceHistory(${p.id})" title="Histórico de preço">📈</button>
-        <button class="btn-sm btn-red" onclick="deleteProd(${p.id})">✕</button>
+        ${inactive
+          ?`<button class="btn-sm" style="background:var(--green);color:#000" onclick="reativarProd(${p.id})">Reativar</button>`
+          :`<button class="btn-sm btn-amber" onclick="openProdModal(${p.id})">Editar</button>
+            <button class="btn-sm" onclick="viewMovements(${p.id})" title="Movimentações">📋</button>
+            <button class="btn-sm" onclick="viewPriceHistory(${p.id})" title="Histórico de preço">📈</button>
+            <button class="btn-sm btn-red" onclick="deleteProd(${p.id})" title="Inativar produto">✕</button>`}
       </div></td>
     </tr>`;}).join(""):`<tr><td colspan="9" class="empty">Nenhum produto.</td></tr>`;
 }
@@ -708,6 +655,14 @@ function saveProd(id){
   if(!name) return alert("Informe o nome do produto.");
   const newSale=parseFloat(el("f-price").value)||0;
   const newCost=parseFloat(el("f-cost").value)||0;
+  if(!newCost||newCost<=0) return alert("O preço de custo é obrigatório.");
+  // Verificação de duplicatas / similaridade
+  const others=state.products.filter(p=>p.id!==id&&p.active!==false);
+  const exact=others.find(p=>norm(p.name)===norm(name));
+  if(exact) return alert(`Produto com nome igual já cadastrado: "${exact.name}"`);
+  const similar=others.find(p=>prodSimilarity(p.name,name)>=0.9);
+  if(similar&&!confirm(`Produto similar já cadastrado: "${similar.name}"\nDeseja cadastrar mesmo assim?`)) return;
+  let savedId=id;
   if(id){
     const p=state.products.find(x=>x.id===id);
     const ph=p.priceHistory||[];
@@ -716,15 +671,26 @@ function saveProd(id){
     }
     state.products=state.products.map(x=>x.id===id?{...x,code:el("f-code").value,name,category:el("f-cat").value,unit:el("f-unit").value,salePrice:newSale,costPrice:newCost,stock:parseInt(el("f-stock").value)||0,minStock:parseInt(el("f-min").value)||0,priceHistory:ph}:x);
   }else{
-    state.products.push({id:uid(),code:el("f-code").value,name,category:el("f-cat").value,unit:el("f-unit").value,salePrice:newSale,costPrice:newCost,stock:parseInt(el("f-stock").value)||0,minStock:parseInt(el("f-min").value)||0,priceHistory:[{date:today(),salePrice:newSale,costPrice:newCost,note:"Cadastro inicial"}]});
+    savedId=uid();
+    state.products.push({id:savedId,code:el("f-code").value,name,category:el("f-cat").value,unit:el("f-unit").value,salePrice:newSale,costPrice:newCost,stock:parseInt(el("f-stock").value)||0,minStock:parseInt(el("f-min").value)||0,active:true,priceHistory:[{date:today(),salePrice:newSale,costPrice:newCost,note:"Cadastro inicial"}]});
   }
-  saveState(); closeModal(); renderProdutos();
+  saveState();
   showSyncStatus(id?"✓ Produto atualizado":"✓ Produto cadastrado");
+  const draft=state.compraDraft;
+  if(draft){ state.compraDraft=null; closeModal(); openCompraModal({...draft,returnProdId:savedId}); }
+  else{ closeModal(); renderProdutos(); }
 }
 function deleteProd(id){
-  if(!confirm("Remover produto?")) return;
-  state.products=state.products.filter(p=>p.id!==id);
-  saveState(); renderProdutos();
+  if(!confirm("Inativar produto?\nEle deixará de aparecer nas listas, mas será preservado no histórico de notas fiscais.")) return;
+  state.products=state.products.map(p=>p.id===id?{...p,active:false}:p);
+  saveState(); filterProdutos();
+  showSyncStatus("✓ Produto inativado");
+}
+function reativarProd(id){
+  if(!confirm("Reativar este produto?")) return;
+  state.products=state.products.map(p=>p.id===id?{...p,active:true}:p);
+  saveState(); filterProdutos();
+  showSyncStatus("✓ Produto reativado");
 }
 function viewPriceHistory(id){
   const p=getProd(id);
@@ -890,10 +856,13 @@ function saveSupplier(id){
 function deleteSupplier(id){ if(confirm("Remover fornecedor?")){ state.suppliers=state.suppliers.filter(s=>s.id!==id); saveState(); renderFornecedores(); } }
 // ─── NOTA FISCAL ─────────────────────────────────────────────────────────────
 function renderNotas(){
+  const nfMonths=new Set();
+  state.invoices.forEach(n=>{ if(n.date) nfMonths.add(n.date.slice(0,7)); });
+  const sortedNfMonths=[...nfMonths].sort().reverse();
   el("content").innerHTML=`
     <div class="section-header">
       <div class="section-title">Notas Fiscais</div>
-      <div class="row">
+      <div class="row" style="flex-wrap:wrap;gap:6px">
         <input id="nf-f-search" class="form-input" style="width:160px" placeholder="Buscar NF/cliente..." oninput="filterNotas()">
         <select id="nf-f-status" class="form-input" style="width:130px" onchange="filterNotas()">
           <option value="">Todos status</option>
@@ -901,6 +870,10 @@ function renderNotas(){
           <option value="paga">Paga</option>
           <option value="parcial">Parcial</option>
           <option value="cancelada">Cancelada</option>
+        </select>
+        <select id="nf-f-period" class="form-input" style="width:150px" onchange="filterNotas()">
+          <option value="">Todos os meses</option>
+          ${sortedNfMonths.map(m=>{const [y,mo]=m.split("-");const ml=["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][parseInt(mo)-1];return`<option value="${m}">${ml}/${y}</option>`;}).join("")}
         </select>
         <button class="btn btn-primary" onclick="openNFModal()">+ Nova Nota Fiscal</button>
       </div>
@@ -918,10 +891,11 @@ function nfSortBy(col){
 function filterNotas(){
   const fSearch=norm((el("nf-f-search")||{}).value||"");
   const fStatus=(el("nf-f-status")||{}).value||"";
+  const fPeriod=(el("nf-f-period")||{}).value||"";
   const tbody=el("nf-tbody"); if(!tbody) return;
   const {col,dir}=_nfSort;
   const sorted=[...state.invoices]
-    .filter(n=>(!fStatus||n.status===fStatus)&&(!fSearch||norm(n.number).includes(fSearch)||norm(getClient(n.clientId)?.name).includes(fSearch)))
+    .filter(n=>(!fStatus||n.status===fStatus)&&(!fPeriod||n.date?.startsWith(fPeriod))&&(!fSearch||norm(n.number).includes(fSearch)||norm(getClient(n.clientId)?.name).includes(fSearch)))
     .sort((a,b)=>{
       let va=a[col]??"", vb=b[col]??"";
       if(col==="clientId"){ va=norm(getClient(a.clientId)?.name||""); vb=norm(getClient(b.clientId)?.name||""); }
@@ -952,6 +926,7 @@ function filterNotas(){
 
 function openNFModal(){
   state.nfItems=[];
+  state.nfCosts=[];
   const nextNum="NF-"+String(state.invoices.length+1).padStart(4,"0");
   showModal(`
     <div class="modal-title">Emitir Nota Fiscal — <span class="text-amber mono">${nextNum}</span></div>
@@ -973,8 +948,16 @@ function openNFModal(){
       <div class="form-group"><label class="form-label">Desconto Geral (%)</label>
         <input id="nf-disc" type="number" min="0" max="100" step="0.1" class="form-input" value="0" oninput="nfUpdateTotals()">
       </div>
-      <div class="form-group"><label class="form-label">Frete (R$)</label>
+      <div class="form-group"><label class="form-label">Frete no PDF (R$)</label>
         <input id="nf-freight" type="number" min="0" step="0.01" class="form-input" value="0" oninput="nfUpdateTotals()">
+      </div>
+    </div>
+    <div class="form-grid-2">
+      <div class="form-group"><label class="form-label">Frete Interno (R$) <span class="text-muted" style="font-size:10px;font-weight:400">— não aparece no PDF, lança saída no caixa</span></label>
+        <input id="nf-freight-int" type="number" min="0" step="0.01" class="form-input" value="0">
+      </div>
+      <div class="form-group"><label class="form-label">Observações <span class="text-muted" style="font-size:10px;font-weight:400">— aparece no PDF</span></label>
+        <input id="nf-obs" class="form-input" placeholder="Observações da nota...">
       </div>
     </div>
     <div class="divider"></div>
@@ -985,18 +968,61 @@ function openNFModal(){
     </div>
     <div id="nf-items-list"></div>
     <div id="nf-totals"></div>
+    <div class="divider"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em">CUSTOS OPERACIONAIS</div>
+      <button class="btn btn-ghost" style="padding:3px 10px;font-size:12px" onclick="nfAddCost()">+ Adicionar Custo</button>
+    </div>
+    <div id="nf-costs-list"></div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
       <button class="btn btn-primary" onclick="emitirNF('${nextNum}')">Emitir Nota</button>
     </div>`,true);
   nfRenderItems();
   nfRenderProdList("");
+  nfRenderCosts();
+}
+function nfAddCost(){
+  if(!state.nfCosts) state.nfCosts=[];
+  state.nfCosts.push({description:"",value:0,clientPays:true});
+  nfRenderCosts();
+}
+function nfRemCost(i){
+  state.nfCosts.splice(i,1);
+  nfRenderCosts();
+  nfRenderItems();
+}
+function nfCostChange(i,field,val){
+  if(!state.nfCosts[i]) return;
+  if(field==="value") state.nfCosts[i].value=parseFloat(val)||0;
+  else if(field==="description") state.nfCosts[i].description=val;
+  else if(field==="clientPays") state.nfCosts[i].clientPays=val;
+  nfRenderItems();
+}
+function nfRenderCosts(){
+  const listEl=el("nf-costs-list"); if(!listEl) return;
+  const costs=state.nfCosts||[];
+  if(!costs.length){
+    listEl.innerHTML=`<div style="color:var(--muted);font-size:13px;padding:6px 0;text-align:center">Nenhum custo adicional</div>`;
+    return;
+  }
+  listEl.innerHTML=costs.map((c,i)=>`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+      <input class="form-input" style="flex:2;min-width:140px" placeholder="Descrição do custo" value="${(c.description||'').replace(/"/g,'&quot;')}" oninput="nfCostChange(${i},'description',this.value)">
+      <input type="number" min="0" step="0.01" class="form-input" style="width:110px" placeholder="R$ 0,00" value="${c.value||''}" oninput="nfCostChange(${i},'value',this.value)">
+      <label style="display:flex;align-items:center;gap:5px;color:var(--text2);font-size:12px;white-space:nowrap;cursor:pointer">
+        <input type="checkbox" ${c.clientPays?"checked":""} onchange="nfCostChange(${i},'clientPays',this.checked)">
+        <span>Cliente paga</span>
+      </label>
+      <span style="font-size:11px;color:var(--muted);white-space:nowrap">${c.clientPays?"→ entra no total da NF":"→ lança saída no caixa"}</span>
+      <button class="btn-sm btn-red" onclick="nfRemCost(${i})">✕</button>
+    </div>`).join("");
 }
 function nfRenderProdList(search){
   const listEl=el("nf-prod-list");
   if(!listEl) return;
   const q=norm(search||"");
-  const prods=state.products.filter(p=>!q||norm(p.name).includes(q)||(p.sku&&norm(p.sku).includes(q)));
+  const prods=state.products.filter(p=>p.active!==false&&(!q||norm(p.name).includes(q)||(p.sku&&norm(p.sku).includes(q))));
   if(!prods.length){ listEl.innerHTML=`<div style="padding:14px;text-align:center;color:var(--muted);font-size:13px">Nenhum produto encontrado</div>`; return; }
   listEl.innerHTML=prods.map(p=>`
     <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--border);background:var(--bg2);transition:background .1s" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background='var(--bg2)'">
@@ -1034,7 +1060,8 @@ function nfRenderItems(){
   const sub=nfGetSubtotal();
   const disc=parseFloat((el("nf-disc")||{}).value)||0;
   const freight=parseFloat((el("nf-freight")||{}).value)||0;
-  const total=sub*(1-disc/100)+freight;
+  const clientCosts=(state.nfCosts||[]).filter(c=>c.clientPays).reduce((s,c)=>s+(parseFloat(c.value)||0),0);
+  const total=sub*(1-disc/100)+freight+clientCosts;
   if(el("nf-items-list")) el("nf-items-list").innerHTML=state.nfItems.length?`
     <div class="items-box">
       ${state.nfItems.map((it,i)=>{const p=getProd(it.productId);const lineTotal=it.qty*it.price*(1-(it.itemDiscount||0)/100);return`
@@ -1054,7 +1081,8 @@ function nfRenderItems(){
     <div class="totals-box" style="margin-top:12px">
       <div class="row-between" style="margin-bottom:6px"><span class="text-muted">Subtotal</span><span class="mono">${fmt(sub)}</span></div>
       ${disc>0?`<div class="row-between" style="margin-bottom:6px"><span class="text-muted">Desconto (${disc}%)</span><span class="mono text-red">− ${fmt(sub*disc/100)}</span></div>`:""}
-      ${freight>0?`<div class="row-between" style="margin-bottom:6px"><span class="text-muted">Frete</span><span class="mono">+ ${fmt(freight)}</span></div>`:""}
+      ${freight>0?`<div class="row-between" style="margin-bottom:6px"><span class="text-muted">Frete PDF</span><span class="mono">+ ${fmt(freight)}</span></div>`:""}
+      ${clientCosts>0?`<div class="row-between" style="margin-bottom:6px"><span class="text-muted">Custos (cliente paga)</span><span class="mono">+ ${fmt(clientCosts)}</span></div>`:""}
       <div class="row-between" style="border-top:1px solid var(--border);padding-top:8px;margin-top:4px">
         <span style="font-family:var(--font-d);font-weight:700">TOTAL</span>
         <span style="font-family:var(--font-m);font-weight:700;font-size:18px;color:var(--amber)">${fmt(total)}</span>
@@ -1068,7 +1096,11 @@ async function emitirNF(num){
   const sub=nfGetSubtotal();
   const disc=parseFloat(el("nf-disc").value)||0;
   const freight=parseFloat(el("nf-freight").value)||0;
-  const total=parseFloat((sub*(1-disc/100)+freight).toFixed(2));
+  const freightInt=parseFloat(el("nf-freight-int")?.value)||0;
+  const obs=(el("nf-obs")?.value||"").trim();
+  const costs=[...(state.nfCosts||[])].filter(c=>c.description||c.value>0);
+  const clientCosts=costs.filter(c=>c.clientPays).reduce((s,c)=>s+(parseFloat(c.value)||0),0);
+  const total=parseFloat((sub*(1-disc/100)+freight+clientCosts).toFixed(2));
   const date=el("nf-date").value;
   const clientId=parseInt(el("nf-client").value);
   const terms=el("nf-terms").value;
@@ -1076,21 +1108,40 @@ async function emitirNF(num){
   const client=getClient(clientId);
   const openAmt=state.receivables.filter(r=>r.clientId===clientId&&r.status==="aberta").reduce((s,r)=>s+r.amount,0);
   if(client.creditLimit>0&&(openAmt+total)>client.creditLimit){
-    if(!confirm(`Atenção: este cliente tem ${fmt(openAmt)} em aberto. O limite de crédito é ${fmt(client.creditLimit)}. Limite será ultrapassado. Continuar?`)) return;
+    if(!confirm(`Atenção: este cliente tem ${fmt(openAmt)} em aberto. O limite de crédito é ${fmt(client.creditLimit)}. Limite será ultrapassado. Continuar?`)){ _doneSave(); return; }
   }
-  const nf={id:uid(),number:num,date,clientId,items:[...state.nfItems],discount:disc,freight,paymentTerms:terms,subtotal:parseFloat(sub.toFixed(2)),total,status:"emitida"};
-  // decrease stock
-  state.nfItems.forEach(it=>{
-    const p=state.products.find(x=>x.id===it.productId);
-    if(p){ p.stock=Math.max(0,p.stock-it.qty); state.stockMovements.push({id:uid(),date,productId:it.productId,type:"saida",qty:it.qty,reason:"Venda",reference:num}); }
-  });
-  // create receivables
-  const recs=generateReceivables(nf.id,num,clientId,total,date,terms);
-  state.receivables.push(...recs);
-  if(terms==="À Vista") nf.status="emitida"; // stays emitida until paid
-  state.invoices.push(nf);
-  await saveToFirebase(); _doneSave(); closeModal(); filterNotas();
-  showSyncStatus("✓ Nota fiscal emitida");
+  // Check stock
+  const stockWarnings=state.nfItems.filter(it=>{const p=getProd(it.productId);return p&&p.stock<it.qty;});
+  if(stockWarnings.length){
+    const msg=stockWarnings.map(it=>{const p=getProd(it.productId);return `• ${p.name}: estoque ${p.stock}, pedido ${it.qty}`;}).join("\n");
+    if(!confirm(`Estoque insuficiente para:\n${msg}\n\nDeseja emitir mesmo assim?`)){ _doneSave(); return; }
+  }
+  try{
+    const nf={id:uid(),number:num,date,clientId,items:[...state.nfItems],discount:disc,freight,paymentTerms:terms,subtotal:parseFloat(sub.toFixed(2)),total,status:"emitida"};
+    if(obs) nf.notes=obs;
+    if(freightInt>0) nf.internalFreight=freightInt;
+    if(costs.length) nf.costs=costs;
+    // decrease stock
+    state.nfItems.forEach(it=>{
+      const p=state.products.find(x=>x.id===it.productId);
+      if(p){ p.stock=Math.max(0,p.stock-it.qty); state.stockMovements.push({id:uid(),date,productId:it.productId,type:"saida",qty:it.qty,reason:"Venda",reference:num}); }
+    });
+    // create receivables (includes client-paid costs)
+    const recs=generateReceivables(nf.id,num,clientId,total,date,terms);
+    state.receivables.push(...recs);
+    // internal freight → saída no caixa
+    if(freightInt>0){
+      state.transactions.push({id:uid(),date,type:"saida",category:"Logística",description:`Frete interno — ${num}`,amount:freightInt});
+    }
+    // non-client costs → saída no caixa
+    costs.filter(c=>!c.clientPays&&c.value>0).forEach(c=>{
+      state.transactions.push({id:uid(),date,type:"saida",category:"Operacional",description:`${c.description||"Custo operacional"} — ${num}`,amount:parseFloat(c.value)||0});
+    });
+    if(terms==="À Vista") nf.status="emitida";
+    state.invoices.push(nf);
+    await saveToFirebase(); closeModal(); filterNotas();
+    showSyncStatus("✓ Nota fiscal emitida");
+  }finally{ _doneSave(); }
 }
 function viewNF(id){
   const n=state.invoices.find(x=>x.id===id);
@@ -1119,12 +1170,16 @@ function viewNF(id){
     <div class="totals-box" style="margin-top:14px">
       <div class="row-between" style="margin-bottom:4px"><span class="text-muted">Subtotal</span><span class="mono">${fmt(n.subtotal)}</span></div>
       ${n.discount>0?`<div class="row-between" style="margin-bottom:4px"><span class="text-muted">Desconto (${n.discount}%)</span><span class="mono text-red">− ${fmt(n.subtotal*n.discount/100)}</span></div>`:""}
-      ${n.freight>0?`<div class="row-between" style="margin-bottom:4px"><span class="text-muted">Frete</span><span class="mono">+ ${fmt(n.freight)}</span></div>`:""}
+      ${n.freight>0?`<div class="row-between" style="margin-bottom:4px"><span class="text-muted">Frete PDF</span><span class="mono">+ ${fmt(n.freight)}</span></div>`:""}
+      ${(n.costs||[]).filter(c=>c.clientPays).map(c=>`<div class="row-between" style="margin-bottom:4px"><span class="text-muted">${c.description||"Custo"} <span style="font-size:10px">(cliente)</span></span><span class="mono">+ ${fmt(c.value||0)}</span></div>`).join("")}
       <div class="row-between" style="border-top:1px solid var(--border);padding-top:8px;margin-top:4px">
         <span style="font-family:var(--font-d);font-weight:700">TOTAL</span>
         <span class="mono fw-bold text-amber" style="font-size:16px">${fmt(n.total)}</span>
       </div>
+      ${n.internalFreight>0?`<div class="row-between" style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--border)"><span class="text-muted" style="font-size:12px">Frete Interno (caixa)</span><span class="mono text-red" style="font-size:12px">− ${fmt(n.internalFreight)}</span></div>`:""}
+      ${(n.costs||[]).filter(c=>!c.clientPays&&c.value>0).map(c=>`<div class="row-between" style="margin-top:4px"><span class="text-muted" style="font-size:12px">${c.description||"Custo"} (caixa)</span><span class="mono text-red" style="font-size:12px">− ${fmt(c.value||0)}</span></div>`).join("")}
     </div>
+    ${n.notes?`<div style="margin-top:12px;padding:10px 12px;background:var(--bg2);border-radius:6px;border:1px solid var(--border)"><span style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Observações</span><div style="margin-top:6px;font-size:13px;color:var(--text2)">${n.notes}</div></div>`:""}
     ${recs.length?`<div style="margin-top:16px"><div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:8px;letter-spacing:.06em">PARCELAS</div>
     <table><thead><tr><th>Parcela</th><th>Vencimento</th><th>Valor</th><th>Status</th></tr></thead><tbody>
       ${recs.map(r=>`<tr>
@@ -1142,7 +1197,9 @@ function viewNF(id){
 }
 async function cancelNF(id){
   if(!confirm("Cancelar esta nota fiscal? O estoque será restaurado.")) return;
-  const n=state.invoices.find(x=>x.id===id);
+  if(!_guardSave()) return;
+  const n=state.invoices.find(x=>x.id==id);
+  if(!n){ _doneSave(); return; }
   n.status="cancelada";
   // restore stock
   n.items.forEach(it=>{
@@ -1150,8 +1207,9 @@ async function cancelNF(id){
     if(p){ p.stock+=it.qty; state.stockMovements.push({id:uid(),date:today(),productId:it.productId,type:"entrada",qty:it.qty,reason:"Cancelamento NF",reference:n.number}); }
   });
   // cancel receivables
-  state.receivables.forEach(r=>{ if(r.invoiceId===id&&r.status==="aberta") r.status="cancelada"; });
-  await saveToFirebase(); renderNotas();
+  state.receivables.forEach(r=>{ if(r.invoiceId==id&&r.status==="aberta") r.status="cancelada"; });
+  try{ await saveToFirebase(); renderNotas(); showSyncStatus("✓ NF cancelada"); }
+  finally{ _doneSave(); }
 }
 
 // ─── COMPRAS ─────────────────────────────────────────────────────────────────
@@ -1189,28 +1247,33 @@ function filterCompras(){
       <td><div class="row"><button class="btn-sm btn-amber" onclick="viewCompra(${c.id})">Ver</button></div></td>
     </tr>`;}).join(""):`<tr><td colspan="8" class="empty">Nenhuma compra encontrada.</td></tr>`;
 }
-function openCompraModal(){
-  state.compraItems=[];
-  const nextNum="CP-"+String(state.purchases.length+1).padStart(4,"0");
+function openCompraModal(draft){
+  if(!draft) state.compraItems=[];
+  const nextNum=draft?.nextNum||"CP-"+String(state.purchases.length+1).padStart(4,"0");
+  const supId=draft?.supplierId||"";
+  const date=draft?.date||today();
+  const terms=draft?.terms||"À Vista";
+  const freight=draft?.freight||"0";
+  const returnProdId=draft?.returnProdId||null;
   showModal(`
     <div class="modal-title">Nova Ordem de Compra — <span class="text-amber mono">${nextNum}</span></div>
     <div class="form-grid-2">
       <div class="form-group"><label class="form-label">Fornecedor</label>
         <select id="cp-sup" class="form-input"><option value="">Selecione...</option>
-        ${state.suppliers.map(s=>`<option value="${s.id}">${s.name}</option>`).join("")}</select>
+        ${state.suppliers.map(s=>`<option value="${s.id}"${s.id==supId?" selected":""}>${s.name}</option>`).join("")}</select>
       </div>
       <div class="form-group"><label class="form-label">Data</label>
-        <input id="cp-date" type="date" class="form-input" value="${today()}">
+        <input id="cp-date" type="date" class="form-input" value="${date}">
       </div>
     </div>
     <div class="form-grid-2">
       <div class="form-group"><label class="form-label">Condição de Pagamento</label>
         <select id="cp-terms" class="form-input">
-          ${["À Vista","30","30/60","30/60/90"].map(t=>`<option>${t}</option>`).join("")}
+          ${["À Vista","30","30/60","30/60/90"].map(t=>`<option${t===terms?" selected":""}>${t}</option>`).join("")}
         </select>
       </div>
       <div class="form-group"><label class="form-label">Frete (R$)</label>
-        <input id="cp-freight" type="number" step="0.01" class="form-input" value="0" oninput="compraUpdateTotals()">
+        <input id="cp-freight" type="number" step="0.01" class="form-input" value="${freight}" oninput="compraUpdateTotals()">
       </div>
     </div>
     <div class="divider"></div>
@@ -1218,11 +1281,12 @@ function openCompraModal(){
     <div class="row" style="margin-bottom:10px">
       <select id="cp-prod" class="form-input" style="flex:1">
         <option value="">Selecione produto...</option>
-        ${state.products.map(p=>`<option value="${p.id}">${p.name} (${p.unit})</option>`).join("")}
+        ${state.products.filter(p=>p.active!==false).map(p=>`<option value="${p.id}"${p.id===returnProdId?" selected":""}>${p.name} (${p.unit})</option>`).join("")}
       </select>
       <input id="cp-qty" type="number" min="1" class="form-input" style="width:80px" placeholder="Qtd" value="1">
       <input id="cp-cost" type="number" min="0" step="0.01" class="form-input" style="width:110px" placeholder="Custo unit.">
       <button class="btn btn-primary" onclick="compraAddItem()">+ Add</button>
+      <button class="btn btn-ghost" onclick="openProdFromCompra()" title="Cadastrar novo produto">+ Novo</button>
     </div>
     <div id="cp-items-list"></div>
     <div id="cp-totals"></div>
@@ -1230,6 +1294,40 @@ function openCompraModal(){
       <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
       <button class="btn btn-primary" onclick="salvarCompra('${nextNum}')">Registrar Compra</button>
     </div>`,true);
+  compraRenderItems();
+}
+function openProdFromCompra(){
+  state.compraDraft={
+    nextNum:"CP-"+String(state.purchases.length+1).padStart(4,"0"),
+    supplierId:el("cp-sup")?.value||"",
+    date:el("cp-date")?.value||today(),
+    terms:el("cp-terms")?.value||"À Vista",
+    freight:el("cp-freight")?.value||"0"
+  };
+  showModal(`<div class="modal-title">Novo Produto <span class="text-muted" style="font-size:12px">— voltará à compra após salvar</span></div>
+    <div class="form-grid-2">
+      <div class="form-group"><label class="form-label">Código</label><input id="f-code" class="form-input" value="PRD${String(uid()).slice(-3)}"></div>
+      <div class="form-group"><label class="form-label">Categoria</label><select id="f-cat" class="form-input">${CAT_PROD.map(c=>`<option>${c}</option>`).join("")}</select></div>
+    </div>
+    <div class="form-group"><label class="form-label">Nome do Produto</label><input id="f-name" class="form-input"></div>
+    <div class="form-grid-3">
+      <div class="form-group"><label class="form-label">Unidade</label><select id="f-unit" class="form-input">${UNITS.map(u=>`<option>${u}</option>`).join("")}</select></div>
+      <div class="form-group"><label class="form-label">Preço de Custo (R$) *</label><input id="f-cost" class="form-input" type="number" step="0.01"></div>
+      <div class="form-group"><label class="form-label">Preço de Venda (R$)</label><input id="f-price" class="form-input" type="number" step="0.01"></div>
+    </div>
+    <div class="form-grid-2">
+      <div class="form-group"><label class="form-label">Estoque Atual</label><input id="f-stock" class="form-input" type="number" value="0"></div>
+      <div class="form-group"><label class="form-label">Estoque Mínimo</label><input id="f-min" class="form-input" type="number" value="0"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="cancelProdFromCompra()">← Voltar à Compra</button>
+      <button class="btn btn-primary" onclick="saveProd()">Salvar e Voltar</button>
+    </div>`);
+}
+function cancelProdFromCompra(){
+  const draft=state.compraDraft;
+  state.compraDraft=null;
+  openCompraModal(draft);
 }
 function compraAddItem(){
   const prodId=parseInt(el("cp-prod").value);
@@ -1532,6 +1630,7 @@ function getRelPeriod(){
 }
 function renderRelatorios(){
   if(state.relTab==="abc"){ renderCurvaABC(); return; }
+  if(state.relTab==="nf"){ renderRelatorioNF(); return; }
   const {label,filter}=getRelPeriod();
   const filteredInv=state.invoices.filter(n=>n.status!=="cancelada"&&filter(n.date));
   const filteredTx=state.transactions.filter(t=>filter(t.date));
@@ -1592,16 +1691,18 @@ function renderRelatorios(){
   el("content").innerHTML=`
     <div class="section-header">
       <div class="section-title">Relatórios Financeiros</div>
-      <div class="row">
+      <div class="row" style="flex-wrap:wrap;gap:6px">
         <div class="tabs" style="margin-bottom:0;border-bottom:none">
           <div class="tab ${state.relTab==="geral"?"active":""}" onclick="state.relTab='geral';renderRelatorios()">Visão Geral</div>
           <div class="tab ${state.relTab==="abc"?"active":""}" onclick="state.relTab='abc';renderRelatorios()">Curva ABC</div>
+          <div class="tab ${state.relTab==="nf"?"active":""}" onclick="state.relTab='nf';state.relNfId=null;renderRelatorios()">Por NF</div>
         </div>
         <span class="text-muted" style="font-size:13px">Período:</span>
         <select class="form-input" style="width:160px" onchange="state.relPeriod=this.value;renderRelatorios()">
           <option value="all" ${state.relPeriod==="all"?"selected":""}>Todo o período</option>
           ${sortedMonths.map(m=>{const [y,mo]=m.split("-");const ml=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"][parseInt(mo)-1];return`<option value="${m}" ${state.relPeriod===m?"selected":""}>${ml}/${y}</option>`;}).join("")}
         </select>
+        <button class="btn btn-ghost" style="padding:5px 10px;font-size:12px" onclick="window.print()" title="Imprimir relatório">🖨 Imprimir</button>
       </div>
     </div>
     <div class="kpi-grid">
@@ -1683,6 +1784,131 @@ function renderRelatorios(){
         </tr>`).join("")}
       </tbody></table>
     </div>`:""}`;
+}
+
+// ─── RELATÓRIO POR NF ────────────────────────────────────────────────────────
+function renderRelatorioNF(){
+  el("content").innerHTML=`
+    <div class="section-header">
+      <div class="section-title">Relatórios Financeiros</div>
+      <div class="row" style="flex-wrap:wrap;gap:6px">
+        <div class="tabs" style="margin-bottom:0;border-bottom:none">
+          <div class="tab" onclick="state.relTab='geral';renderRelatorios()">Visão Geral</div>
+          <div class="tab" onclick="state.relTab='abc';renderRelatorios()">Curva ABC</div>
+          <div class="tab active">Por NF</div>
+        </div>
+      </div>
+    </div>
+    <div class="grid-2" style="gap:16px;align-items:start">
+      <div class="card">
+        <div class="section-title" style="margin-bottom:12px">Notas Fiscais</div>
+        <input id="rel-nf-search" class="form-input" style="margin-bottom:10px;width:100%" placeholder="🔍 Buscar por número ou cliente..." oninput="filterRelNF()">
+        <div id="rel-nf-list" style="max-height:520px;overflow-y:auto"></div>
+      </div>
+      <div id="rel-nf-detail">
+        <div class="card" style="text-align:center;padding:40px 20px;color:var(--muted)">
+          <div style="font-size:36px;margin-bottom:10px">📋</div>
+          <div>Selecione uma nota à esquerda para ver o relatório completo</div>
+        </div>
+      </div>
+    </div>`;
+  filterRelNF();
+  if(state.relNfId){
+    const nf=state.invoices.find(n=>n.id===state.relNfId);
+    if(nf) renderRelNFDetail(nf);
+  }
+}
+function filterRelNF(){
+  const listEl=el("rel-nf-list"); if(!listEl) return;
+  const q=norm((el("rel-nf-search")||{value:""}).value);
+  const filtered=[...state.invoices].filter(n=>{
+    const c=getClient(n.clientId);
+    return !q||norm(n.number).includes(q)||(c&&norm(c.name).includes(q));
+  }).sort((a,b)=>b.date.localeCompare(a.date));
+  listEl.innerHTML=filtered.length?filtered.map(n=>{
+    const c=getClient(n.clientId);
+    const sel=state.relNfId===n.id;
+    const statusColor={paga:"bg-green",parcial:"bg-blue",emitida:"bg-amber",cancelada:"bg-gray"}[n.status]||"bg-gray";
+    return`<div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:6px;cursor:pointer;background:${sel?"var(--bg3)":"var(--bg2)"};border:1px solid ${sel?"var(--amber)":"var(--border)"};margin-bottom:6px"
+      onclick="state.relNfId=${n.id};filterRelNF();renderRelNFDetail(state.invoices.find(x=>x.id===${n.id}))">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;color:var(--text)">${n.number} <span class="text-muted" style="font-size:11px">· ${fmtDate(n.date)}</span></div>
+        <div style="font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c?c.name:"—"}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div class="mono" style="font-size:13px;color:var(--amber)">${fmt(n.total)}</div>
+        <span class="badge ${statusColor}" style="font-size:10px">${n.status}</span>
+      </div>
+    </div>`;
+  }).join(""):`<div class="empty">Nenhuma NF encontrada.</div>`;
+}
+function renderRelNFDetail(nf){
+  const detailEl=el("rel-nf-detail"); if(!detailEl||!nf) return;
+  const c=getClient(nf.clientId);
+  const recs=state.receivables.filter(r=>r.invoiceId===nf.id);
+  let totalCost=0, hasMissingCost=false;
+  const items=nf.items.map(it=>{
+    const p=getProd(it.productId);
+    const disc=it.itemDiscount||0;
+    const saleTotal=it.qty*it.price*(1-disc/100);
+    const unitCost=p?.costPrice||0;
+    if(!unitCost) hasMissingCost=true;
+    const costTotal=it.qty*unitCost;
+    totalCost+=costTotal;
+    return{...it,p,saleTotal,unitCost,costTotal,profit:saleTotal-costTotal};
+  });
+  const internalFreight=nf.internalFreight||0;
+  const nonClientCosts=(nf.costs||[]).filter(c=>!c.clientPays).reduce((s,c)=>s+(c.value||0),0);
+  const profit=nf.total-totalCost-internalFreight-nonClientCosts;
+  const margin=nf.total>0?(profit/nf.total*100):0;
+  const statusColor={paga:"bg-green",parcial:"bg-blue",emitida:"bg-amber",cancelada:"bg-gray"}[nf.status]||"bg-gray";
+  detailEl.innerHTML=`
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+        <div>
+          <div style="font-size:18px;font-weight:700;color:var(--text)">${nf.number}</div>
+          <div style="font-size:13px;color:var(--muted)">${fmtDate(nf.date)} · ${c?c.name:"—"} · ${nf.paymentTerms}</div>
+        </div>
+        <div class="row">
+          <span class="badge ${statusColor}">${nf.status}</span>
+          <button class="btn btn-ghost" style="padding:5px 10px;font-size:12px" onclick="printNF(${nf.id})">🖨 PDF</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto;margin-bottom:16px">
+        <table>
+          <thead><tr>
+            <th>Produto</th><th>Qtd</th><th>Venda Unit.</th><th>Custo Unit.</th><th>Total Venda</th><th>Total Custo</th><th style="color:var(--green)">Lucro</th>
+          </tr></thead>
+          <tbody>
+            ${items.map(it=>`<tr>
+              <td style="font-size:12px">${it.p?it.p.name:"—"}${it.itemDiscount>0?` <span class="badge bg-amber" style="font-size:10px">${it.itemDiscount}% desc</span>`:""}</td>
+              <td class="mono">${it.qty}</td>
+              <td class="mono">${fmt(it.price)}</td>
+              <td class="mono">${it.unitCost?fmt(it.unitCost):`<span class="text-muted">—</span>`}</td>
+              <td class="mono text-amber">${fmt(it.saleTotal)}</td>
+              <td class="mono text-red">${it.unitCost?fmt(it.costTotal):`<span class="text-muted">—</span>`}</td>
+              <td class="mono fw-bold" style="color:${it.unitCost?(it.profit>=0?"var(--green)":"var(--red)"):"var(--muted)"}">${it.unitCost?fmt(it.profit):"—"}</td>
+            </tr>`).join("")}
+          </tbody>
+        </table>
+      </div>
+      <div class="kpi-grid-2" style="margin-bottom:16px">
+        <div class="kpi"><div class="kpi-label">Total da NF</div><div class="kpi-value text-amber">${fmt(nf.total)}</div>${nf.discount>0?`<div class="kpi-sub">Desc. ${nf.discount}% · Frete ${fmt(nf.freight||0)}</div>`:""}</div>
+        <div class="kpi"><div class="kpi-label">Custo Total</div><div class="kpi-value text-red">${fmt(totalCost+(internalFreight||0)+(nonClientCosts||0))}</div>${hasMissingCost?`<div class="kpi-sub" style="color:var(--amber)">⚠ Produto(s) sem custo ignorados</div>`:""}<div class="kpi-sub">${internalFreight>0?`Frete int. ${fmt(internalFreight)}`:""}${nonClientCosts>0?` · Custos op. ${fmt(nonClientCosts)}`:""}</div></div>
+        <div class="kpi"><div class="kpi-label">Lucro Bruto</div><div class="kpi-value" style="color:${profit>=0?"var(--green)":"var(--red)"}">${fmt(profit)}</div></div>
+        <div class="kpi"><div class="kpi-label">Margem</div><div class="kpi-value" style="color:${margin>=30?"var(--green)":margin>=15?"var(--amber)":"var(--red)"}">${margin.toFixed(1)}%</div></div>
+      </div>
+      ${recs.length?`
+        <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:8px;letter-spacing:.06em">PARCELAS</div>
+        <table><thead><tr><th>Parcela</th><th>Vencimento</th><th>Valor</th><th>Status</th></tr></thead><tbody>
+          ${recs.map(r=>`<tr>
+            <td class="mono">${r.installment}/${r.total}</td>
+            <td class="mono ${isOverdue(r.dueDate)&&r.status==="aberta"?"text-red":""}">${fmtDate(r.dueDate)}${isOverdue(r.dueDate)&&r.status==="aberta"?" ⚠":""}</td>
+            <td class="mono">${fmt(r.amount)}</td>
+            <td><span class="badge ${r.status==="paga"?"bg-green":r.status==="cancelada"?"bg-gray":"bg-amber"}">${r.status}</span></td>
+          </tr>`).join("")}
+        </tbody></table>`:""}
+    </div>`;
 }
 
 // ─── CONFIG ──────────────────────────────────────────────────────────────────
@@ -1775,6 +2001,8 @@ async function saveToFirebase() {
       transactions: state.transactions,
       stockMovements: state.stockMovements,
       company: state.company,
+      orders: state.orders||[],
+      returns: state.returns||[],
       updatedAt: new Date().toISOString()
     };
     await setDoc(doc(db, 'empresas', uid), toSave);
@@ -1797,7 +2025,7 @@ async function loadFromFirebase() {
     if (snap.exists()) {
       const data = snap.data();
       Object.assign(state, data);
-      state.nfItems = []; state.compraItems = [];
+      state.nfItems = []; state.compraItems = []; state.nfCosts = [];
       if(!state.stockMovements) state.stockMovements=[];
       if(!state.suppliers) state.suppliers=[];
       if(!state.purchases) state.purchases=[];
@@ -1867,12 +2095,7 @@ async function doLogout() {
   await signOut(window._auth);
 }
 
-// Override saveState to also save to Firebase
-const _origSaveState = saveState;
-function saveState() {
-  _origSaveState();
-  saveToFirebase();
-}
+// saveToFirebase is called directly from saveState — no override needed
 
 
 // ─── ROLES & NAV CONTROL ─────────────────────────────────────────────────────
@@ -2224,7 +2447,7 @@ function pedidoRenderProdList(search){
   const listEl=el("ped-prod-list");
   if(!listEl) return;
   const q=norm(search||"");
-  const prods=state.products.filter(p=>!q||norm(p.name).includes(q)||(p.sku&&norm(p.sku).includes(q)));
+  const prods=state.products.filter(p=>p.active!==false&&(!q||norm(p.name).includes(q)||(p.sku&&norm(p.sku).includes(q))));
   if(!prods.length){ listEl.innerHTML=`<div style="padding:14px;text-align:center;color:var(--muted);font-size:13px">Nenhum produto encontrado</div>`; return; }
   listEl.innerHTML=prods.map(p=>`
     <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--border);background:var(--bg2);transition:background .1s" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background='var(--bg2)'">
@@ -2321,9 +2544,11 @@ function faturarPedido(id){
   if(!o) return;
   // Pre-fill NF modal with order items and client
   state.nfItems=o.items.map(it=>({productId:it.productId,qty:it.qty,price:it.price,itemDiscount:it.itemDiscount||0}));
+  state.nfCosts=[];
   const clients=state.clients||[];
   const invoices=state.invoices||[];
   const nextNum="NF-"+String(invoices.length+1).padStart(4,"0");
+  const obsVal=(o.notes||"").replace(/"/g,"&quot;");
   openModal(`<div class="modal-title">Emitir NF — Pedido ${o.number}</div>
     <div class="form-grid-2">
       <div class="form-group"><label class="form-label">Número NF</label>
@@ -2348,8 +2573,16 @@ function faturarPedido(id){
       <div class="form-group"><label class="form-label">Desconto Geral (%)</label>
         <input id="nf-disc" type="number" min="0" max="100" step="0.1" class="form-input" value="${o.discount||0}" oninput="nfUpdateTotals()">
       </div>
-      <div class="form-group"><label class="form-label">Frete (R$)</label>
+      <div class="form-group"><label class="form-label">Frete no PDF (R$)</label>
         <input id="nf-freight" type="number" min="0" step="0.01" class="form-input" value="${o.freight||0}" oninput="nfUpdateTotals()">
+      </div>
+    </div>
+    <div class="form-grid-2">
+      <div class="form-group"><label class="form-label">Frete Interno (R$) <span class="text-muted" style="font-size:10px;font-weight:400">— não aparece no PDF</span></label>
+        <input id="nf-freight-int" type="number" min="0" step="0.01" class="form-input" value="0">
+      </div>
+      <div class="form-group"><label class="form-label">Observações <span class="text-muted" style="font-size:10px;font-weight:400">— aparece no PDF</span></label>
+        <input id="nf-obs" class="form-input" placeholder="Observações da nota..." value="${obsVal}">
       </div>
     </div>
     <div class="divider"></div>
@@ -2360,12 +2593,19 @@ function faturarPedido(id){
     </div>
     <div id="nf-items-list"></div>
     <div id="nf-totals"></div>
+    <div class="divider"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em">CUSTOS OPERACIONAIS</div>
+      <button class="btn btn-ghost" style="padding:3px 10px;font-size:12px" onclick="nfAddCost()">+ Adicionar Custo</button>
+    </div>
+    <div id="nf-costs-list"></div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
       <button class="btn btn-primary" onclick="emitirNFdePedido('${nextNum}','${o.id}')">Emitir Nota</button>
     </div>`,true);
   nfRenderItems();
   nfRenderProdList("");
+  nfRenderCosts();
 }
 async function emitirNFdePedido(nfNum, pedidoId){
   if(!_guardSave()) return;
@@ -2373,12 +2613,18 @@ async function emitirNFdePedido(nfNum, pedidoId){
   const terms=el("nf-terms").value;
   const disc=parseFloat(el("nf-disc").value)||0;
   const freight=parseFloat(el("nf-freight").value)||0;
+  const freightInt=parseFloat(el("nf-freight-int")?.value)||0;
+  const obs=(el("nf-obs")?.value||"").trim();
+  const costs=[...(state.nfCosts||[])].filter(c=>c.description||c.value>0);
+  const clientCosts=costs.filter(c=>c.clientPays).reduce((s,c)=>s+(parseFloat(c.value)||0),0);
   const date=el("nf-date").value||today();
   if(!state.nfItems.length){ _doneSave(); alert("Adicione pelo menos um item."); return; }
   const sub=nfGetSubtotal();
-  const discAmt=sub*disc/100;
-  const total=sub-discAmt+freight;
+  const total=parseFloat((sub*(1-disc/100)+freight+clientCosts).toFixed(2));
   const inv={id:Date.now(),number:nfNum,date,clientId,paymentTerms:terms,discount:disc,freight,items:[...state.nfItems],subtotal:sub,total,status:"emitida"};
+  if(obs) inv.notes=obs;
+  if(freightInt>0) inv.internalFreight=freightInt;
+  if(costs.length) inv.costs=costs;
   state.invoices.push(inv);
   // Decrement stock
   inv.items.forEach(it=>{
@@ -2387,18 +2633,25 @@ async function emitirNFdePedido(nfNum, pedidoId){
   });
   // Stock movement
   if(!state.stockMovements) state.stockMovements=[];
-  inv.items.forEach(it=>{ state.stockMovements.push({date,productId:it.productId,type:"saida",qty:it.qty,ref:nfNum}); });
+  inv.items.forEach(it=>{ state.stockMovements.push({id:uid(),date,productId:it.productId,type:"saida",qty:it.qty,reason:"Venda",reference:nfNum}); });
   // Receivable
   if(!state.receivables) state.receivables=[];
   const recs2=generateReceivables(inv.id,nfNum,clientId,total,date,terms);
   state.receivables.push(...recs2);
+  // Internal freight → saída no caixa
+  if(freightInt>0){
+    state.transactions.push({id:uid(),date,type:"saida",category:"Logística",description:`Frete interno — ${nfNum}`,amount:freightInt});
+  }
+  // Non-client costs → saída no caixa
+  costs.filter(c=>!c.clientPays&&c.value>0).forEach(c=>{
+    state.transactions.push({id:uid(),date,type:"saida",category:"Operacional",description:`${c.description||"Custo operacional"} — ${nfNum}`,amount:parseFloat(c.value)||0});
+  });
   // Mark pedido as faturado
   const o=state.orders.find(x=>x.id==pedidoId);
   if(o){ o.status="faturado"; o.invoiceId=inv.id; }
   state.nfItems=[];
-  await saveToFirebase(); _doneSave();
-  closeModal(); filterNotas();
-  showSyncStatus("✓ NF emitida e pedido faturado");
+  try{ await saveToFirebase(); closeModal(); filterNotas(); showSyncStatus("✓ NF emitida e pedido faturado"); }
+  finally{ _doneSave(); }
 }
 function viewPedido(id){
   const o=state.orders.find(x=>x.id==id);
@@ -2460,7 +2713,7 @@ function filterDevolucoes(){
     return `<tr>
       <td><span class="badge">${d.number}</span></td>
       <td>${fmtDate(d.date)}</td>
-      <td><span class="badge" style="background:var(--bg2)">${d.nfNumber||"—"}</span></td>
+      <td>${d.nfId?`<span class="badge" style="background:var(--bg2);cursor:pointer;text-decoration:underline" onclick="viewNF(${d.nfId})" title="Ver NF">${d.nfNumber||"—"}</span>`:`<span class="badge" style="background:var(--bg2)">${d.nfNumber||"—"}</span>`}</td>
       <td>${c?c.name:"—"}</td>
       <td>${d.items.length} item(s)</td>
       <td style="color:var(--amber)">${fmt(d.total)}</td>
@@ -2534,10 +2787,12 @@ async function salvarDevolucao(nfId){
   // Credit note in caixa
   if(!state.transactions) state.transactions=[];
   state.transactions.push({id:Date.now()+2,date,type:"entrada",category:"Devolução",description:`Devolução ${devNum} — NF ${nf.number}`,amount:total});
-  await saveToFirebase(); _doneSave();
-  closeModal();
-  showSyncStatus("✓ Devolução registrada, estoque restaurado");
-  renderDevolucoes();
+  try{
+    await saveToFirebase();
+    closeModal();
+    showSyncStatus("✓ Devolução registrada, estoque restaurado");
+    renderDevolucoes();
+  }finally{ _doneSave(); }
 }
 
 // ─── CURVA ABC ────────────────────────────────────────────────────────────────
@@ -2568,16 +2823,18 @@ function renderCurvaABC(){
   el("content").innerHTML=`
     <div class="section-header">
       <div class="section-title">Relatórios — Curva ABC</div>
-      <div class="row">
+      <div class="row" style="flex-wrap:wrap;gap:6px">
         <div class="tabs" style="margin-bottom:0;border-bottom:none">
           <div class="tab ${state.relTab==="geral"?"active":""}" onclick="state.relTab='geral';renderRelatorios()">Visão Geral</div>
           <div class="tab ${state.relTab==="abc"?"active":""}" onclick="state.relTab='abc';renderRelatorios()">Curva ABC</div>
+          <div class="tab ${state.relTab==="nf"?"active":""}" onclick="state.relTab='nf';state.relNfId=null;renderRelatorios()">Por NF</div>
         </div>
         <span class="text-muted" style="font-size:13px">Período:</span>
         <select class="form-input" style="width:160px" onchange="state.relPeriod=this.value;renderRelatorios()">
           <option value="all" ${state.relPeriod==="all"?"selected":""}>Todo o período</option>
           ${sortedMonths.map(m=>{const [y,mo]=m.split("-");const ml=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"][parseInt(mo)-1];return`<option value="${m}" ${state.relPeriod===m?"selected":""}>${ml}/${y}</option>`;}).join("")}
         </select>
+        <button class="btn btn-ghost" style="padding:5px 10px;font-size:12px" onclick="window.print()" title="Imprimir relatório">🖨 Imprimir</button>
       </div>
     </div>
     <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
