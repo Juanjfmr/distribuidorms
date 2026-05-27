@@ -1223,8 +1223,8 @@ function renderCompras(){
         <button class="btn btn-primary" onclick="openCompraModal()">+ Nova Compra</button>
       </div>
     </div>
-    <div class="card"><table><thead><tr>
-      <th>Número</th><th>Data</th><th>Fornecedor</th><th>Frete</th><th>Total</th><th>Pagamento</th><th>Status</th><th></th>
+    <div class="card" style="overflow-x:auto"><table><thead><tr>
+      <th>Número</th><th>Data</th><th>Fornecedor</th><th>Frete</th><th>Total</th><th>Forma Pag.</th><th>Vencimento</th><th>Status</th><th></th>
     </tr></thead><tbody id="comp-tbody"></tbody></table></div>`;
   filterCompras();
 }
@@ -1237,23 +1237,36 @@ function filterCompras(){
   }).sort((a,b)=>b.date.localeCompare(a.date));
   tbody.innerHTML=filtered.length?filtered.map(c=>{
     const sup=getSupplier(c.supplierId);
+    const openPays=state.payables.filter(p=>p.purchaseId===c.id&&p.status==="aberta").sort((a,b)=>a.dueDate.localeCompare(b.dueDate));
+    const nextDue=openPays[0]?.dueDate||null;
+    const daysUntil=nextDue?Math.ceil((new Date(nextDue+"T00:00:00")-new Date(today()+"T00:00:00"))/(1000*60*60*24)):null;
+    const dueWarn=nextDue&&daysUntil<=7&&daysUntil>=0;
+    const dueOver=nextDue&&isOverdue(nextDue);
+    const statusColor={paga:"bg-green","a pagar":"bg-amber",parcial:"bg-blue",recebida:"bg-green"}[c.status]||"bg-amber";
     return`<tr>
       <td class="mono text-amber">${c.number}</td>
       <td>${fmtDate(c.date)}</td>
       <td class="text-white">${sup?sup.name:"—"}</td>
       <td class="mono">${c.freight>0?fmt(c.freight):"—"}</td>
       <td class="mono fw-bold">${fmt(c.total)}</td>
-      <td><span class="badge bg-blue" style="font-size:10px">${c.paymentTerms}</span></td>
-      <td><span class="badge ${c.status==="recebida"?"bg-green":"bg-amber"}">${c.status}</span></td>
-      <td><div class="row"><button class="btn-sm btn-amber" onclick="viewCompra(${c.id})">Ver</button></div></td>
-    </tr>`;}).join(""):`<tr><td colspan="8" class="empty">Nenhuma compra encontrada.</td></tr>`;
+      <td><span class="badge bg-blue" style="font-size:10px">${c.paymentMethod||c.paymentTerms||"—"}</span></td>
+      <td class="mono ${dueOver?"text-red":dueWarn?"text-amber":""}">${nextDue?fmtDate(nextDue)+"<br><span style='font-size:10px'>"+(dueOver?"⚠ vencida":dueWarn?"⚠ a vencer":"")+"</span>":"—"}</td>
+      <td><span class="badge ${statusColor}">${c.status||"a pagar"}</span></td>
+      <td><div class="row">
+        <button class="btn-sm btn-amber" onclick="viewCompra(${c.id})">Ver</button>
+        ${c.status!=="paga"?`<button class="btn-sm btn-ghost" onclick="editCompraModal(${c.id})">Editar</button>`:""}
+        ${c.status!=="paga"?`<button class="btn-sm" style="background:rgba(63,185,80,.15);color:var(--green);border-color:rgba(63,185,80,.3)" onclick="pagarCompra(${c.id})">💰 Pagar</button>`:""}
+      </div></td>
+    </tr>`;}).join(""):`<tr><td colspan="9" class="empty">Nenhuma compra encontrada.</td></tr>`;
 }
+const CP_PAY_METHODS=["Pix","Cartão de Crédito","Crédito Fornecedor","Dinheiro","Transferência"];
 function openCompraModal(draft){
   if(!draft) state.compraItems=[];
   const nextNum=draft?.nextNum||"CP-"+String(state.purchases.length+1).padStart(4,"0");
   const supId=draft?.supplierId||"";
   const date=draft?.date||today();
-  const terms=draft?.terms||"À Vista";
+  const payMethod=draft?.payMethod||"Pix";
+  const installments=draft?.installments||1;
   const freight=draft?.freight||"0";
   const returnProdId=draft?.returnProdId||null;
   showModal(`
@@ -1263,24 +1276,28 @@ function openCompraModal(draft){
         <select id="cp-sup" class="form-input"><option value="">Selecione...</option>
         ${state.suppliers.map(s=>`<option value="${s.id}"${s.id==supId?" selected":""}>${s.name}</option>`).join("")}</select>
       </div>
-      <div class="form-group"><label class="form-label">Data</label>
+      <div class="form-group"><label class="form-label">Data da Compra</label>
         <input id="cp-date" type="date" class="form-input" value="${date}">
       </div>
     </div>
-    <div class="form-grid-2">
-      <div class="form-group"><label class="form-label">Condição de Pagamento</label>
-        <select id="cp-terms" class="form-input">
-          ${["À Vista","30","30/60","30/60/90"].map(t=>`<option${t===terms?" selected":""}>${t}</option>`).join("")}
+    <div class="form-grid-3">
+      <div class="form-group"><label class="form-label">Forma de Pagamento</label>
+        <select id="cp-paymethod" class="form-input">
+          ${CP_PAY_METHODS.map(m=>`<option${m===payMethod?" selected":""}>${m}</option>`).join("")}
         </select>
+      </div>
+      <div class="form-group"><label class="form-label">Nº de Parcelas</label>
+        <input id="cp-installments" type="number" min="1" max="24" class="form-input" value="${installments}" oninput="cpRenderInstallments()">
       </div>
       <div class="form-group"><label class="form-label">Frete (R$)</label>
         <input id="cp-freight" type="number" step="0.01" class="form-input" value="${freight}" oninput="compraUpdateTotals()">
       </div>
     </div>
+    <div id="cp-installment-dates"></div>
     <div class="divider"></div>
     <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:10px;letter-spacing:.06em">ITENS DA COMPRA</div>
-    <div class="row" style="margin-bottom:10px">
-      <select id="cp-prod" class="form-input" style="flex:1">
+    <div class="row" style="margin-bottom:10px;flex-wrap:wrap">
+      <select id="cp-prod" class="form-input" style="flex:2;min-width:160px">
         <option value="">Selecione produto...</option>
         ${state.products.filter(p=>p.active!==false).map(p=>`<option value="${p.id}"${p.id===returnProdId?" selected":""}>${p.name} (${p.unit})</option>`).join("")}
       </select>
@@ -1296,13 +1313,36 @@ function openCompraModal(draft){
       <button class="btn btn-primary" onclick="salvarCompra('${nextNum}')">Registrar Compra</button>
     </div>`,true);
   compraRenderItems();
+  cpRenderInstallments(draft?.dueDates||null);
+}
+function cpRenderInstallments(savedDates){
+  const listEl=el("cp-installment-dates"); if(!listEl) return;
+  const n=Math.max(1,Math.min(24,parseInt(el("cp-installments")?.value)||1));
+  if(n===1){
+    listEl.innerHTML=`<div class="form-group" style="margin-bottom:12px"><label class="form-label">Data de Vencimento</label>
+      <input id="cp-due-0" type="date" class="form-input" value="${(savedDates&&savedDates[0])||today()}">
+    </div>`;
+  } else {
+    listEl.innerHTML=`<div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:8px;letter-spacing:.06em">${n} PARCELAS — vencimentos individuais (valores divididos igualmente)</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-bottom:12px">
+    ${Array.from({length:n},(_,i)=>`
+      <div class="form-group" style="margin:0">
+        <label class="form-label" style="font-size:11px">Parcela ${i+1}/${n}</label>
+        <input id="cp-due-${i}" type="date" class="form-input" value="${(savedDates&&savedDates[i])||today()}">
+      </div>`).join("")}
+    </div>`;
+  }
 }
 function openProdFromCompra(){
+  const n=Math.max(1,parseInt(el("cp-installments")?.value)||1);
+  const dueDates=Array.from({length:n},(_,i)=>el(`cp-due-${i}`)?.value||today());
   state.compraDraft={
     nextNum:"CP-"+String(state.purchases.length+1).padStart(4,"0"),
     supplierId:el("cp-sup")?.value||"",
     date:el("cp-date")?.value||today(),
-    terms:el("cp-terms")?.value||"À Vista",
+    payMethod:el("cp-paymethod")?.value||"Pix",
+    installments:n,
+    dueDates,
     freight:el("cp-freight")?.value||"0"
   };
   showModal(`<div class="modal-title">Novo Produto <span class="text-muted" style="font-size:12px">— voltará à compra após salvar</span></div>
@@ -1377,13 +1417,20 @@ async function salvarCompra(num){
   const total=parseFloat((sub+freight).toFixed(2));
   const date=el("cp-date").value;
   const supplierId=parseInt(el("cp-sup").value);
-  const terms=el("cp-terms").value;
+  const payMethod=el("cp-paymethod").value;
+  const nInst=Math.max(1,parseInt(el("cp-installments").value)||1);
+  // collect due dates
+  const dueDates=[];
+  for(let i=0;i<nInst;i++){
+    const d=el(`cp-due-${i}`)?.value;
+    if(!d){ _doneSave(); return alert(`Informe a data de vencimento da parcela ${i+1}.`); }
+    dueDates.push(d);
+  }
   // increase stock and update cost price
   state.compraItems.forEach(it=>{
     const p=state.products.find(x=>x.id===it.productId);
     if(p){
       p.stock+=it.qty;
-      // update cost price with note
       if(it.unitCost!==p.costPrice){
         if(!p.priceHistory) p.priceHistory=[];
         p.priceHistory.push({date,salePrice:p.salePrice,costPrice:it.unitCost,note:"Atualizado via compra "+num});
@@ -1392,23 +1439,35 @@ async function salvarCompra(num){
       state.stockMovements.push({id:uid(),date,productId:it.productId,type:"entrada",qty:it.qty,reason:"Compra",reference:num});
     }
   });
-  const purchase={id:uid(),number:num,date,supplierId,items:[...state.compraItems],freight,total,paymentTerms:terms,status:"recebida"};
+  const purchase={id:uid(),number:num,date,supplierId,items:[...state.compraItems],freight,total,paymentMethod:payMethod,installments:nInst,status:"a pagar"};
   state.purchases.push(purchase);
-  // create payables
-  const pays=generatePayables(purchase.id,num,supplierId,total,date,terms,"Compra "+num);
-  state.payables.push(...pays);
+  // create payables with manual due dates
+  const shareAmt=parseFloat((total/nInst).toFixed(2));
+  dueDates.forEach((d,i)=>{
+    const isLast=i===nInst-1;
+    const amt=isLast?parseFloat((total-shareAmt*i).toFixed(2)):shareAmt;
+    state.payables.push({id:uid()+(i*7),purchaseId:purchase.id,purchaseNumber:num,supplierId,dueDate:d,amount:amt,installment:i+1,total:nInst,status:"aberta",paidAt:null,description:"Compra "+num,paymentMethod:payMethod});
+  });
   await saveToFirebase(); _doneSave(); closeModal(); renderCompras();
-  showSyncStatus("✓ Compra registrada");
+  showSyncStatus("✓ Compra registrada — aguardando pagamento");
 }
 function viewCompra(id){
   const c=state.purchases.find(x=>x.id===id);
+  if(!c) return;
   const sup=getSupplier(c.supplierId);
   const pays=state.payables.filter(p=>p.purchaseId===id);
+  const statusColor={paga:"bg-green","a pagar":"bg-amber",parcial:"bg-blue",recebida:"bg-green"}[c.status]||"bg-amber";
+  const hasOpen=pays.some(p=>p.status==="aberta");
   showModal(`
-    <div class="modal-title">${c.number} — <span class="text-muted" style="font-size:14px">${sup?sup.name:"—"}</span></div>
+    <div class="row-between" style="margin-bottom:16px">
+      <div class="modal-title" style="margin:0">${c.number}</div>
+      <span class="badge ${statusColor}">${c.status||"a pagar"}</span>
+    </div>
     <div class="form-grid-2" style="margin-bottom:14px">
-      <div><div class="kpi-label">Data</div><div style="font-size:14px;margin-top:4px">${fmtDate(c.date)}</div></div>
-      <div><div class="kpi-label">Pagamento</div><div style="font-size:14px;margin-top:4px">${c.paymentTerms}</div></div>
+      <div><div class="kpi-label">Fornecedor</div><div style="font-size:14px;margin-top:4px;font-weight:600">${sup?sup.name:"—"}</div></div>
+      <div><div class="kpi-label">Data da Compra</div><div style="font-size:14px;margin-top:4px">${fmtDate(c.date)}</div></div>
+      <div><div class="kpi-label">Forma de Pagamento</div><div style="font-size:14px;margin-top:4px">${c.paymentMethod||c.paymentTerms||"—"}</div></div>
+      <div><div class="kpi-label">Parcelas</div><div style="font-size:14px;margin-top:4px">${c.installments||1}x</div></div>
     </div>
     <table><thead><tr><th>Produto</th><th>Qtd</th><th>Custo Unit.</th><th>Total</th></tr></thead><tbody>
       ${c.items.map(it=>{const p=getProd(it.productId);return`<tr>
@@ -1420,7 +1479,7 @@ function viewCompra(id){
       ${c.freight>0?`<div class="row-between" style="margin-bottom:4px"><span class="text-muted">Frete</span><span class="mono">${fmt(c.freight)}</span></div>`:""}
       <div class="row-between"><span class="fw-bold">TOTAL</span><span class="mono fw-bold text-amber">${fmt(c.total)}</span></div>
     </div>
-    ${pays.length?`<div style="margin-top:16px"><div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:8px;letter-spacing:.06em">CONTAS A PAGAR</div>
+    ${pays.length?`<div style="margin-top:16px"><div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:8px;letter-spacing:.06em">PARCELAS</div>
     <table><thead><tr><th>Parcela</th><th>Vencimento</th><th>Valor</th><th>Status</th></tr></thead><tbody>
       ${pays.map(p=>`<tr>
         <td class="mono">${p.installment}/${p.total}</td>
@@ -1429,7 +1488,171 @@ function viewCompra(id){
         <td><span class="badge ${p.status==="paga"?"bg-green":"bg-amber"}">${p.status}</span></td>
       </tr>`).join("")}
     </tbody></table></div>`:""}
-    <div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal()">Fechar</button></div>`,true);
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Fechar</button>
+      ${hasOpen?`<button class="btn btn-primary" style="background:var(--green)" onclick="closeModal();pagarCompra(${c.id})">💰 Registrar Pagamento</button>`:""}
+    </div>`,true);
+}
+function pagarCompra(compraId){
+  const c=state.purchases.find(x=>x.id==compraId); if(!c) return;
+  const pays=state.payables.filter(p=>p.purchaseId==compraId&&p.status==="aberta");
+  if(!pays.length){ alert("Não há parcelas em aberto para esta compra."); return; }
+  const sup=getSupplier(c.supplierId);
+  showModal(`<div class="modal-title">Registrar Pagamento — ${c.number}</div>
+    <div style="margin-bottom:12px;font-size:13px;color:var(--muted)">Fornecedor: <b style="color:var(--text)">${sup?sup.name:"—"}</b> &nbsp;|&nbsp; Total: <b style="color:var(--amber)">${fmt(c.total)}</b></div>
+    <div class="form-group"><label class="form-label">Data do Pagamento</label>
+      <input id="pg-date" type="date" class="form-input" value="${today()}">
+    </div>
+    <div class="divider"></div>
+    <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:10px;letter-spacing:.06em">PARCELAS EM ABERTO</div>
+    <table>
+      <thead><tr>
+        <th><input type="checkbox" checked onchange="document.querySelectorAll('.pg-chk').forEach(x=>x.checked=this.checked)"></th>
+        <th>Parcela</th><th>Vencimento</th><th>Valor a Pagar</th>
+      </tr></thead>
+      <tbody>${pays.map(p=>`<tr>
+        <td><input type="checkbox" class="pg-chk" data-id="${p.id}" checked></td>
+        <td class="mono text-muted">${p.installment}/${p.total}</td>
+        <td class="mono ${isOverdue(p.dueDate)?"text-red":""}">${fmtDate(p.dueDate)}${isOverdue(p.dueDate)?" ⚠":""}</td>
+        <td><input type="number" class="form-input pg-amt" data-id="${p.id}" value="${p.amount}" step="0.01" min="0.01" style="width:130px"></td>
+      </tr>`).join("")}</tbody>
+    </table>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" style="background:var(--green)" onclick="confirmarPagamentoCompra(${c.id})">✓ Confirmar Pagamento</button>
+    </div>`);
+}
+async function confirmarPagamentoCompra(compraId){
+  if(!_guardSave()) return;
+  const payDate=el("pg-date").value||today();
+  const chks=document.querySelectorAll(".pg-chk:checked");
+  if(!chks.length){ _doneSave(); alert("Selecione ao menos uma parcela."); return; }
+  let totalPago=0;
+  chks.forEach(chk=>{
+    const p=state.payables.find(x=>x.id==chk.dataset.id);
+    const amtInput=document.querySelector(`.pg-amt[data-id="${chk.dataset.id}"]`);
+    const amt=parseFloat(amtInput?.value)||p?.amount||0;
+    if(p&&p.status==="aberta"){
+      if(amt<p.amount-0.01){
+        // pagamento parcial — cria saldo restante
+        const remainder=parseFloat((p.amount-amt).toFixed(2));
+        state.payables.push({...p,id:uid(),amount:remainder,paidAt:null,status:"aberta",installment:p.total+1,total:p.total+1});
+        p.amount=parseFloat(amt.toFixed(2));
+      }
+      p.status="paga"; p.paidAt=payDate;
+      totalPago+=parseFloat(amt.toFixed(2));
+      state.transactions.push({id:uid(),date:payDate,type:"saida",category:"Compras",description:`Pagamento ${p.installment}/${p.total} — ${p.purchaseNumber||"Compra"}`,amount:parseFloat(amt.toFixed(2))});
+    }
+  });
+  const allPays=state.payables.filter(x=>x.purchaseId==compraId&&x.status!=="cancelada");
+  const allPaid=allPays.every(x=>x.status==="paga");
+  const anyPaid=allPays.some(x=>x.status==="paga");
+  const c=state.purchases.find(x=>x.id==compraId);
+  if(c) c.status=allPaid?"paga":anyPaid?"parcial":"a pagar";
+  try{ await saveToFirebase(); closeModal(); filterCompras(); showSyncStatus(`✓ Pagamento de ${fmt(totalPago)} lançado no caixa`); }
+  finally{ _doneSave(); }
+}
+function editCompraModal(id){
+  const c=state.purchases.find(x=>x.id==id); if(!c) return;
+  const paidPays=state.payables.filter(p=>p.purchaseId==id&&p.status==="paga");
+  if(paidPays.length&&!confirm("Esta compra já possui parcelas pagas. Editar irá recalcular as parcelas em aberto. Continuar?")){return;}
+  state.compraItems=[...c.items];
+  const pays=state.payables.filter(p=>p.purchaseId==id).sort((a,b)=>a.installment-b.installment);
+  const openPays=pays.filter(p=>p.status==="aberta");
+  const nInst=openPays.length||c.installments||1;
+  const dueDates=openPays.map(p=>p.dueDate);
+  showModal(`
+    <div class="modal-title">Editar Compra — <span class="text-amber mono">${c.number}</span></div>
+    <div class="form-grid-2">
+      <div class="form-group"><label class="form-label">Fornecedor</label>
+        <select id="cp-sup" class="form-input"><option value="">Selecione...</option>
+        ${state.suppliers.map(s=>`<option value="${s.id}"${s.id==c.supplierId?" selected":""}>${s.name}</option>`).join("")}</select>
+      </div>
+      <div class="form-group"><label class="form-label">Data da Compra</label>
+        <input id="cp-date" type="date" class="form-input" value="${c.date}">
+      </div>
+    </div>
+    <div class="form-grid-3">
+      <div class="form-group"><label class="form-label">Forma de Pagamento</label>
+        <select id="cp-paymethod" class="form-input">
+          ${CP_PAY_METHODS.map(m=>`<option${m===(c.paymentMethod||"Pix")?" selected":""}>${m}</option>`).join("")}
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Nº de Parcelas em Aberto</label>
+        <input id="cp-installments" type="number" min="1" max="24" class="form-input" value="${nInst}" oninput="cpRenderInstallments()">
+      </div>
+      <div class="form-group"><label class="form-label">Frete (R$)</label>
+        <input id="cp-freight" type="number" step="0.01" class="form-input" value="${c.freight||0}" oninput="compraUpdateTotals()">
+      </div>
+    </div>
+    <div id="cp-installment-dates"></div>
+    <div class="divider"></div>
+    <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:10px;letter-spacing:.06em">ITENS DA COMPRA</div>
+    <div class="row" style="margin-bottom:10px;flex-wrap:wrap">
+      <select id="cp-prod" class="form-input" style="flex:2;min-width:160px">
+        <option value="">Selecione produto...</option>
+        ${state.products.filter(p=>p.active!==false).map(p=>`<option value="${p.id}">${p.name} (${p.unit})</option>`).join("")}
+      </select>
+      <input id="cp-qty" type="number" min="1" class="form-input" style="width:80px" placeholder="Qtd" value="1">
+      <input id="cp-cost" type="number" min="0" step="0.01" class="form-input" style="width:110px" placeholder="Custo unit.">
+      <button class="btn btn-primary" onclick="compraAddItem()">+ Add</button>
+    </div>
+    <div id="cp-items-list"></div>
+    <div id="cp-totals"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarEditCompra(${id})">Salvar Alterações</button>
+    </div>`,true);
+  compraRenderItems();
+  cpRenderInstallments(dueDates);
+}
+async function salvarEditCompra(id){
+  if(!_guardSave()) return;
+  const c=state.purchases.find(x=>x.id==id); if(!c){ _doneSave(); return; }
+  if(!el("cp-sup").value){ _doneSave(); return alert("Selecione o fornecedor."); }
+  if(!state.compraItems.length){ _doneSave(); return alert("Adicione pelo menos um item."); }
+  const freight=parseFloat(el("cp-freight").value)||0;
+  const sub=state.compraItems.reduce((s,it)=>s+(it.qty*it.unitCost),0);
+  const total=parseFloat((sub+freight).toFixed(2));
+  const date=el("cp-date").value;
+  const supplierId=parseInt(el("cp-sup").value);
+  const payMethod=el("cp-paymethod").value;
+  const nInst=Math.max(1,parseInt(el("cp-installments").value)||1);
+  const dueDates=[];
+  for(let i=0;i<nInst;i++){
+    const d=el(`cp-due-${i}`)?.value;
+    if(!d){ _doneSave(); return alert(`Informe a data de vencimento da parcela ${i+1}.`); }
+    dueDates.push(d);
+  }
+  // reverse old stock (only open/new diff)
+  c.items.forEach(it=>{
+    const p=state.products.find(x=>x.id===it.productId);
+    if(p) p.stock=Math.max(0,p.stock-it.qty);
+  });
+  // apply new stock
+  state.compraItems.forEach(it=>{
+    const p=state.products.find(x=>x.id===it.productId);
+    if(p){ p.stock+=it.qty; state.stockMovements.push({id:uid(),date,productId:it.productId,type:"entrada",qty:it.qty,reason:"Edição compra",reference:c.number}); }
+  });
+  // cancel open payables and recreate
+  state.payables.forEach(p=>{ if(p.purchaseId==id&&p.status==="aberta") p.status="cancelada"; });
+  const shareAmt=parseFloat((total/nInst).toFixed(2));
+  dueDates.forEach((d,i)=>{
+    const isLast=i===nInst-1;
+    const amt=isLast?parseFloat((total-shareAmt*i).toFixed(2)):shareAmt;
+    state.payables.push({id:uid()+(i*7),purchaseId:c.id,purchaseNumber:c.number,supplierId,dueDate:d,amount:amt,installment:i+1,total:nInst,status:"aberta",paidAt:null,description:"Compra "+c.number,paymentMethod:payMethod});
+  });
+  // update purchase
+  c.items=[...state.compraItems];
+  c.freight=freight;
+  c.total=total;
+  c.supplierId=supplierId;
+  c.date=date;
+  c.paymentMethod=payMethod;
+  c.installments=nInst;
+  if(c.status==="paga") c.status="a pagar";
+  try{ await saveToFirebase(); closeModal(); renderCompras(); showSyncStatus("✓ Compra atualizada"); }
+  finally{ _doneSave(); }
 }
 // ─── CONTAS ──────────────────────────────────────────────────────────────────
 function renderContas(){
@@ -2308,12 +2531,12 @@ function darBaixaNF(nfId){
     <div class="divider"></div>
     <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:10px;letter-spacing:.06em">PARCELAS EM ABERTO</div>
     <table class="table">
-      <thead><tr><th><input type="checkbox" checked onchange="document.querySelectorAll('.bx-chk').forEach(c=>c.checked=this.checked)"></th><th>Parcela</th><th>Vencimento</th><th>Valor</th></tr></thead>
+      <thead><tr><th><input type="checkbox" checked onchange="document.querySelectorAll('.bx-chk').forEach(c=>c.checked=this.checked)"></th><th>Parcela</th><th>Vencimento</th><th>Valor a Receber</th></tr></thead>
       <tbody>${recs.map(r=>`<tr>
         <td><input type="checkbox" class="bx-chk" data-id="${r.id}" checked></td>
         <td style="color:var(--muted)">${r.installment}/${r.total}</td>
         <td style="color:${isOverdue(r.dueDate)?"var(--red)":"var(--text)"}">${fmtDate(r.dueDate)}${isOverdue(r.dueDate)?" ⚠":""}</td>
-        <td style="color:var(--amber);font-weight:600">${fmt(r.amount)}</td>
+        <td><input type="number" class="form-input bx-amt" data-id="${r.id}" value="${r.amount}" step="0.01" min="0.01" style="width:130px" title="Altere para registrar pagamento parcial"></td>
       </tr>`).join("")}</tbody>
     </table>
     <div class="modal-footer">
@@ -2329,10 +2552,18 @@ async function confirmarBaixa(nfId){
   let totalRecebido=0;
   chks.forEach(chk=>{
     const r=state.receivables.find(x=>x.id==chk.dataset.id);
+    const amtInput=document.querySelector(`.bx-amt[data-id="${chk.dataset.id}"]`);
+    const amt=parseFloat(amtInput?.value)||r?.amount||0;
     if(r&&r.status==="aberta"){
+      if(amt<r.amount-0.01){
+        // pagamento parcial — cria saldo devedor como nova parcela
+        const remainder=parseFloat((r.amount-amt).toFixed(2));
+        state.receivables.push({...r,id:uid(),amount:remainder,paidAt:null,status:"aberta",installment:r.total+1,total:r.total+1});
+        r.amount=parseFloat(amt.toFixed(2));
+      }
       r.status="paga"; r.paidAt=payDate;
-      totalRecebido+=r.amount;
-      state.transactions.push({id:uid(),date:payDate,type:"entrada",category:"Vendas",description:`Recebimento ${r.installment}/${r.total} — ${r.invoiceNumber||"NF"}`,amount:r.amount});
+      totalRecebido+=parseFloat(amt.toFixed(2));
+      state.transactions.push({id:uid(),date:payDate,type:"entrada",category:"Vendas",description:`Recebimento ${r.installment}/${r.total} — ${r.invoiceNumber||"NF"}`,amount:parseFloat(amt.toFixed(2))});
     }
   });
   const nfRecs=state.receivables.filter(x=>x.invoiceId===nfId&&x.status!=="cancelada");
@@ -2340,9 +2571,8 @@ async function confirmarBaixa(nfId){
   const anyPaid=nfRecs.some(x=>x.status==="paga");
   const nf=state.invoices.find(x=>x.id===nfId);
   if(nf) nf.status=allPaid?"paga":anyPaid?"parcial":"emitida";
-  await saveToFirebase(); _doneSave();
-  closeModal(); filterNotas();
-  showSyncStatus(`✓ Recebimento de ${fmt(totalRecebido)} registrado no caixa`);
+  try{ await saveToFirebase(); closeModal(); filterNotas(); showSyncStatus(`✓ Recebimento de ${fmt(totalRecebido)} registrado no caixa`); }
+  finally{ _doneSave(); }
 }
 
 // ─── NF PRODUCT FILTER — alias (mantido por compatibilidade) ─────────────────
