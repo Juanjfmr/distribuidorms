@@ -42,37 +42,37 @@ onAuthStateChanged(auth, async (user) => {
         const profile = snap.data();
         window._userProfile = profile;
         window._userRole = profile.role || 'visualizador';
-        const isAdmin = profile.role === 'admin';
-        if (isAdmin) {
-          // Admin: o uid dele É o ID da empresa
-          const companyId = profile.companyId || user.uid;
-          if (!profile.companyId) {
+        // Todos os usuários (admin ou não): config/global é a fonte da verdade
+        const globalSnap = await getDoc(doc(db, 'config', 'global'));
+        if (globalSnap.exists()) {
+          // config/global já existe — todos usam esse companyId, sem exceção
+          const companyId = globalSnap.data().companyId;
+          if (profile.companyId !== companyId) {
             await setDoc(doc(db, 'users', user.uid), {...profile, companyId});
+            window._userProfile = {...profile, companyId};
           }
-          // Publica companyId para outros usuários da empresa encontrarem
-          await setDoc(doc(db, 'config', 'global'), { companyId });
           window._companyId = companyId;
         } else {
-          // Não-admin: usa companyId correto do perfil, ou busca no config/global
-          const companyIdCorreto = profile.companyId && profile.companyId !== user.uid;
-          if (companyIdCorreto) {
-            window._companyId = profile.companyId;
-          } else {
-            const globalSnap = await getDoc(doc(db, 'config', 'global'));
-            const companyId = globalSnap.exists() ? globalSnap.data().companyId : user.uid;
-            if (companyId !== profile.companyId) {
+          // config/global ainda não existe — apenas o admin cria (outros aguardam)
+          if (profile.role === 'admin') {
+            const companyId = profile.companyId || user.uid;
+            await setDoc(doc(db, 'config', 'global'), { companyId });
+            if (!profile.companyId) {
               await setDoc(doc(db, 'users', user.uid), {...profile, companyId});
               window._userProfile = {...profile, companyId};
             }
             window._companyId = companyId;
+          } else {
+            // Não-admin sem global config — fallback temporário ao próprio uid
+            window._companyId = profile.companyId || user.uid;
           }
         }
       } else {
-        // Primeiro usuário (criado direto no Firebase Console) — vira admin
+        // Nenhum perfil: primeiro usuário criado direto no Firebase Console — vira admin
         const companyId = user.uid;
         const profile = { name: user.email, email: user.email, role: 'admin', active: true, createdAt: new Date().toISOString(), companyId };
         await setDoc(doc(db, 'users', user.uid), profile);
-        await setDoc(doc(db, 'config', 'global'), { companyId });
+        await setDoc(doc(db, 'config', 'global'), { companyId }); // cria config/global uma única vez
         window._userProfile = profile;
         window._userRole = 'admin';
         window._companyId = companyId;
