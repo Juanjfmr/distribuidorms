@@ -39,17 +39,27 @@ onAuthStateChanged(auth, async (user) => {
     try {
       const snap = await getDoc(doc(db, 'users', user.uid));
       if (snap.exists()) {
-        window._userProfile = snap.data();
-        window._userRole = snap.data().role || 'visualizador';
+        const profile = snap.data();
+        window._userProfile = profile;
+        window._userRole = profile.role || 'visualizador';
+        // Se perfil não tem companyId (usuário antigo/admin), usa o próprio uid e salva
+        if (!profile.companyId) {
+          const updated = {...profile, companyId: user.uid};
+          await setDoc(doc(db, 'users', user.uid), updated);
+          window._userProfile = updated;
+        }
+        window._companyId = window._userProfile.companyId || user.uid;
       } else {
-        // First admin user (created directly in Firebase console) — auto-create as admin
-        const profile = { name: user.email, email: user.email, role: 'admin', active: true, createdAt: new Date().toISOString() };
+        // Primeiro usuário (criado direto no Firebase Console) — vira admin
+        const profile = { name: user.email, email: user.email, role: 'admin', active: true, createdAt: new Date().toISOString(), companyId: user.uid };
         await setDoc(doc(db, 'users', user.uid), profile);
         window._userProfile = profile;
         window._userRole = 'admin';
+        window._companyId = user.uid;
       }
     } catch(e) {
       window._userRole = 'admin'; // fallback
+      window._companyId = user.uid;
     }
     const loginEl = document.getElementById('login-screen');
     const appEl = document.getElementById('app');
@@ -293,52 +303,10 @@ tr:hover td{background:rgba(255,255,255,.015)}
 const STORAGE_KEY = "distribuidorms_v2";
 const defaultState = {
   company:{ name:"2R Comércio", cnpj:"", address:"", city:"", uf:"MS", phone:"", email:"" },
-  products:[
-    {id:1,code:"PRD001",name:"Água Mineral 500ml",category:"Bebidas",unit:"CX",salePrice:18.50,costPrice:10.00,stock:240,minStock:50,priceHistory:[{date:"2026-01-01",salePrice:18.50,costPrice:10.00,note:"Cadastro inicial"}]},
-    {id:2,code:"PRD002",name:"Refrigerante Cola 2L",category:"Bebidas",unit:"CX",salePrice:72.00,costPrice:48.00,stock:80,minStock:20,priceHistory:[{date:"2026-01-01",salePrice:72.00,costPrice:48.00,note:"Cadastro inicial"}]},
-    {id:3,code:"PRD003",name:"Biscoito Recheado 130g",category:"Alimentos",unit:"CX",salePrice:45.60,costPrice:28.00,stock:150,minStock:30,priceHistory:[{date:"2026-01-01",salePrice:45.60,costPrice:28.00,note:"Cadastro inicial"}]},
-    {id:4,code:"PRD004",name:"Detergente 500ml",category:"Limpeza",unit:"DZ",salePrice:22.80,costPrice:13.50,stock:60,minStock:24,priceHistory:[{date:"2026-01-01",salePrice:22.80,costPrice:13.50,note:"Cadastro inicial"}]},
-    {id:5,code:"PRD005",name:"Papel Higiênico 12 rolos",category:"Higiene",unit:"PCT",salePrice:38.90,costPrice:24.00,stock:45,minStock:20,priceHistory:[{date:"2026-01-01",salePrice:38.90,costPrice:24.00,note:"Cadastro inicial"}]},
-  ],
-  clients:[
-    {id:1,name:"Mercadinho do João",cnpj:"12.345.678/0001-90",city:"Maracaju",phone:"(67) 99123-4567",email:"",creditLimit:5000},
-    {id:2,name:"Supermercado Bom Preço",cnpj:"98.765.432/0001-10",city:"Sidrolândia",phone:"(67) 98765-4321",email:"",creditLimit:15000},
-    {id:3,name:"Armazém Central",cnpj:"11.222.333/0001-44",city:"Itaporã",phone:"(67) 99888-7766",email:"",creditLimit:8000},
-  ],
-  suppliers:[
-    {id:1,name:"Distribuidora Norte Sul",cnpj:"55.444.333/0001-22",city:"Campo Grande",phone:"(67) 3333-4444",contact:"Carlos",paymentDays:"30"},
-    {id:2,name:"Alimentos & Cia",cnpj:"77.888.999/0001-11",city:"Dourados",phone:"(67) 3211-5555",contact:"Ana",paymentDays:"30/60"},
-  ],
-  invoices:[
-    {id:1,number:"NF-0001",date:"2026-05-01",clientId:1,items:[{productId:1,qty:10,price:18.50,itemDiscount:0},{productId:3,qty:5,price:45.60,itemDiscount:0}],discount:0,freight:0,paymentTerms:"30",subtotal:413.00,total:413.00,status:"paga"},
-    {id:2,number:"NF-0002",date:"2026-05-08",clientId:2,items:[{productId:2,qty:8,price:72.00,itemDiscount:0},{productId:4,qty:4,price:22.80,itemDiscount:0}],discount:0,freight:25.00,paymentTerms:"30/60",subtotal:667.20,total:692.20,status:"parcial"},
-    {id:3,number:"NF-0003",date:"2026-05-15",clientId:3,items:[{productId:5,qty:12,price:38.90,itemDiscount:0}],discount:5,freight:0,paymentTerms:"À Vista",subtotal:466.80,total:443.46,status:"emitida"},
-  ],
-  purchases:[
-    {id:1,number:"CP-0001",date:"2026-05-03",supplierId:1,items:[{productId:1,qty:200,unitCost:10.00},{productId:2,qty:50,unitCost:48.00}],freight:150.00,total:4550.00,paymentTerms:"30",status:"recebida"},
-  ],
-  receivables:[
-    {id:1,invoiceId:1,invoiceNumber:"NF-0001",clientId:1,dueDate:"2026-06-01",amount:413.00,installment:1,total:1,status:"paga",paidAt:"2026-06-01"},
-    {id:2,invoiceId:2,invoiceNumber:"NF-0002",clientId:2,dueDate:"2026-06-08",amount:346.10,installment:1,total:2,status:"paga",paidAt:"2026-06-08"},
-    {id:3,invoiceId:2,invoiceNumber:"NF-0002",clientId:2,dueDate:"2026-07-08",amount:346.10,installment:2,total:2,status:"aberta",paidAt:null},
-    {id:4,invoiceId:3,invoiceNumber:"NF-0003",clientId:3,dueDate:"2026-05-15",amount:443.46,installment:1,total:1,status:"aberta",paidAt:null},
-  ],
-  payables:[
-    {id:1,purchaseId:1,purchaseNumber:"CP-0001",supplierId:1,dueDate:"2026-06-03",amount:4550.00,installment:1,total:1,status:"aberta",paidAt:null,description:"Compra CP-0001"},
-  ],
-  transactions:[
-    {id:1,date:"2026-05-01",type:"entrada",category:"Vendas",description:"Recebimento NF-0001",amount:413.00},
-    {id:2,date:"2026-05-08",type:"entrada",category:"Vendas",description:"Recebimento parcela 1/2 NF-0002",amount:346.10},
-    {id:3,date:"2026-05-10",type:"saida",category:"Logística",description:"Combustível entrega",amount:380.00},
-    {id:4,date:"2026-05-12",type:"saida",category:"Operacional",description:"Aluguel galpão",amount:1500.00},
-    {id:5,date:"2026-05-20",type:"entrada",category:"Outros",description:"Devolução fornecedor",amount:340.00},
-  ],
-  stockMovements:[
-    {id:1,date:"2026-05-01",productId:1,type:"saida",qty:10,reason:"Venda",reference:"NF-0001"},
-    {id:2,date:"2026-05-01",productId:3,type:"saida",qty:5,reason:"Venda",reference:"NF-0001"},
-    {id:3,date:"2026-05-03",productId:1,type:"entrada",qty:200,reason:"Compra",reference:"CP-0001"},
-    {id:4,date:"2026-05-03",productId:2,type:"entrada",qty:50,reason:"Compra",reference:"CP-0001"},
-  ],
+  products:[], clients:[], suppliers:[],
+  invoices:[], purchases:[],
+  receivables:[], payables:[], transactions:[],
+  stockMovements:[],
   currentView:"dashboard", contasTab:"receber", cashFilter:"todos",
   nfItems:[], compraItems:[], pedidoItems:[], nfCosts:[], relPeriod:"all", relTab:"geral",
   orders:[], returns:[],
@@ -398,8 +366,8 @@ let _nfSort = {col:"date", dir:"desc"};
 function _guardSave(){ if(_saving) return false; _saving=true; return true; }
 function _doneSave(){ _saving=false; }
 const CAT_PROD=["Bebidas","Alimentos","Limpeza","Higiene","Outros"];
-const UNITS=["UN","CX","DZ","PCT","KG","LT","MT"];
-const PAY_TERMS=["À Vista","7 dias","14 dias","21 dias","28 dias","30 dias","30/60","30/60/90"];
+const UNITS=["UN","CX","DZ","PCT","KG","LT","MT","FD"];
+const PAY_TERMS=["À Vista","7 dias","14 dias","21 dias","28 dias","30 dias","35 dias","42 dias","30/60","30/60/90"];
 const CAT_FIN={entrada:["Vendas","Outros","Financiamento","Juros"],saida:["Compras","Logística","Operacional","Salários","Impostos","Outros"]};
 
 function generateReceivables(invoiceId,invoiceNumber,clientId,total,date,terms){
@@ -413,7 +381,7 @@ function generateReceivables(invoiceId,invoiceNumber,clientId,total,date,terms){
   else if(terms==="30 dias"){ dates=[addDays(date,30)]; shares=[1]; }
   else if(terms==="30/60"){ dates=[addDays(date,30),addDays(date,60)]; shares=[0.5,0.5]; }
   else if(terms==="30/60/90"){ dates=[addDays(date,30),addDays(date,60),addDays(date,90)]; shares=[1/3,1/3,1/3]; }
-  else{ dates=[date]; shares=[1]; }
+  else{ const m=terms.match(/^(\d+)\s*dias?$/i); if(m){ dates=[addDays(date,parseInt(m[1]))]; shares=[1]; } else{ dates=[date]; shares=[1]; } }
   dates.forEach((d,i)=>{
     recs.push({id:uid()+(i*7),invoiceId,invoiceNumber,clientId,dueDate:d,amount:parseFloat((total*shares[i]).toFixed(2)),installment:i+1,total:dates.length,status:"aberta",paidAt:null});
   });
@@ -783,7 +751,14 @@ function saveClient(id){
   saveState(); closeModal(); renderClientes();
   showSyncStatus(id?"✓ Cliente atualizado":"✓ Cliente cadastrado");
 }
-function deleteClient(id){ if(confirm("Remover cliente?")){ state.clients=state.clients.filter(c=>c.id!==id); saveState(); renderClientes(); } }
+function deleteClient(id){
+  const refs=[];
+  if((state.invoices||[]).some(n=>n.clientId==id&&n.status!=="cancelada")) refs.push("notas fiscais");
+  if((state.orders||[]).some(o=>o.clientId==id&&o.status!=="cancelado")) refs.push("pedidos");
+  if((state.receivables||[]).some(r=>r.clientId==id&&r.status==="aberta")) refs.push("recebíveis em aberto");
+  if(refs.length){ alert("Não é possível excluir: cliente possui "+refs.join(", ")+" vinculado(s)."); return; }
+  if(confirm("Remover cliente?")){ state.clients=state.clients.filter(c=>c.id!==id); saveState(); renderClientes(); }
+}
 
 // ─── FORNECEDORES ────────────────────────────────────────────────────────────
 function renderFornecedores(){
@@ -811,7 +786,7 @@ function filterFornecedores(){
       <td class="mono">${s.cnpj||"—"}</td>
       <td>${s.city||"—"}</td>
       <td>${s.contact||"—"}</td>
-      <td><span class="badge bg-blue">${s.paymentDays||"—"} dias</span></td>
+      <td><span class="badge bg-blue">${s.paymentDays?(/^\d/.test(s.paymentDays)?s.paymentDays+" dias":s.paymentDays):"—"}</span></td>
       <td class="mono">${comps.length} · ${fmt(vol)}</td>
       <td><div class="row">
         <button class="btn-sm btn-amber" onclick="openSupplierModal(${s.id})">Editar</button>
@@ -853,7 +828,13 @@ function saveSupplier(id){
   saveState(); closeModal(); renderFornecedores();
   showSyncStatus(id?"✓ Fornecedor atualizado":"✓ Fornecedor cadastrado");
 }
-function deleteSupplier(id){ if(confirm("Remover fornecedor?")){ state.suppliers=state.suppliers.filter(s=>s.id!==id); saveState(); renderFornecedores(); } }
+function deleteSupplier(id){
+  const refs=[];
+  if((state.purchases||[]).some(p=>p.supplierId==id&&p.status!=="cancelada")) refs.push("compras");
+  if((state.payables||[]).some(p=>p.supplierId==id&&p.status==="a pagar")) refs.push("pagamentos em aberto");
+  if(refs.length){ alert("Não é possível excluir: fornecedor possui "+refs.join(", ")+" vinculado(s)."); return; }
+  if(confirm("Remover fornecedor?")){ state.suppliers=state.suppliers.filter(s=>s.id!==id); saveState(); renderFornecedores(); }
+}
 // ─── NOTA FISCAL ─────────────────────────────────────────────────────────────
 function renderNotas(){
   const nfMonths=new Set();
@@ -1022,7 +1003,7 @@ function nfRenderProdList(search){
   const listEl=el("nf-prod-list");
   if(!listEl) return;
   const q=norm(search||"");
-  const prods=state.products.filter(p=>p.active!==false&&(!q||norm(p.name).includes(q)||(p.sku&&norm(p.sku).includes(q))));
+  const prods=state.products.filter(p=>p.active!==false&&(!q||norm(p.name).includes(q)||(p.code&&norm(p.code).includes(q))));
   if(!prods.length){ listEl.innerHTML=`<div style="padding:14px;text-align:center;color:var(--muted);font-size:13px">Nenhum produto encontrado</div>`; return; }
   listEl.innerHTML=prods.map(p=>`
     <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--border);background:var(--bg2);transition:background .1s" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background='var(--bg2)'">
@@ -1177,6 +1158,7 @@ function viewNF(id){
         <span style="font-family:var(--font-d);font-weight:700">TOTAL</span>
         <span class="mono fw-bold text-amber" style="font-size:16px">${fmt(n.total)}</span>
       </div>
+      ${n.returnedTotal>0?`<div class="row-between" style="margin-top:4px"><span class="text-muted">Devolvido</span><span class="mono text-red">− ${fmt(n.returnedTotal)}</span></div><div class="row-between" style="padding-top:4px;border-top:1px dashed var(--border);margin-top:4px"><span style="font-size:12px;font-weight:600">Líquido recebível</span><span class="mono fw-bold" style="font-size:13px">${fmt(Math.max(0,n.total-n.returnedTotal))}</span></div>`:""}
       ${n.internalFreight>0?`<div class="row-between" style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--border)"><span class="text-muted" style="font-size:12px">Frete Interno (caixa)</span><span class="mono text-red" style="font-size:12px">− ${fmt(n.internalFreight)}</span></div>`:""}
       ${(n.costs||[]).filter(c=>!c.clientPays&&c.value>0).map(c=>`<div class="row-between" style="margin-top:4px"><span class="text-muted" style="font-size:12px">${c.description||"Custo"} (caixa)</span><span class="mono text-red" style="font-size:12px">− ${fmt(c.value||0)}</span></div>`).join("")}
     </div>
@@ -1536,7 +1518,7 @@ async function confirmarPagamentoCompra(compraId){
       if(amt<p.amount-0.01){
         // pagamento parcial — cria saldo restante
         const remainder=parseFloat((p.amount-amt).toFixed(2));
-        state.payables.push({...p,id:uid(),amount:remainder,paidAt:null,status:"aberta",installment:p.total+1,total:p.total+1});
+        state.payables.push({...p,id:uid(),amount:remainder,paidAt:null,status:"aberta",installment:p.total+1,total:p.total+1,isSaldo:true});
         p.amount=parseFloat(amt.toFixed(2));
       }
       p.status="paga"; p.paidAt=payDate;
@@ -1627,7 +1609,7 @@ async function salvarEditCompra(id){
   // reverse old stock (only open/new diff)
   c.items.forEach(it=>{
     const p=state.products.find(x=>x.id===it.productId);
-    if(p) p.stock=Math.max(0,p.stock-it.qty);
+    if(p){ p.stock=Math.max(0,p.stock-it.qty); state.stockMovements.push({id:uid(),date,productId:it.productId,type:"saida",qty:it.qty,reason:"Reversão edição compra",reference:c.number}); }
   });
   // apply new stock
   state.compraItems.forEach(it=>{
@@ -1673,7 +1655,7 @@ function renderContas(){
       <table><thead><tr><th>Nota</th><th>Parcela</th><th>Cliente</th><th>Vencimento</th><th>Valor</th><th>Status</th><th></th></tr></thead><tbody>
         ${sorted.map(r=>{const c=getClient(r.clientId);const overdue=isOverdue(r.dueDate)&&r.status==="aberta";return`<tr>
           <td class="mono text-amber">${r.invoiceNumber}</td>
-          <td class="mono">${r.installment}/${r.total}</td>
+          <td class="mono">${r.installment}/${r.total}${r.isSaldo?` <span class="badge bg-amber" style="font-size:10px">saldo</span>`:""}</td>
           <td class="text-white">${c?c.name:"—"}</td>
           <td class="mono ${overdue?"text-red":""}">${fmtDate(r.dueDate)}${overdue?" ⚠":""}</td>
           <td class="mono fw-bold">${fmt(r.amount)}</td>
@@ -1688,7 +1670,7 @@ function renderContas(){
       <table><thead><tr><th>Compra</th><th>Parcela</th><th>Fornecedor</th><th>Vencimento</th><th>Valor</th><th>Status</th><th></th></tr></thead><tbody>
         ${sorted.map(p=>{const s=getSupplier(p.supplierId);const overdue=isOverdue(p.dueDate)&&p.status==="aberta";return`<tr>
           <td class="mono text-amber">${p.purchaseNumber||p.description}</td>
-          <td class="mono">${p.installment}/${p.total}</td>
+          <td class="mono">${p.installment}/${p.total}${p.isSaldo?` <span class="badge bg-amber" style="font-size:10px">saldo</span>`:""}</td>
           <td class="text-white">${s?s.name:"—"}</td>
           <td class="mono ${overdue?"text-red":""}">${fmtDate(p.dueDate)}${overdue?" ⚠":""}</td>
           <td class="mono fw-bold">${fmt(p.amount)}</td>
@@ -1723,27 +1705,97 @@ function renderContas(){
 function payReceivable(id){
   const r=state.receivables.find(x=>x.id===id);
   if(!r||r.status!=="aberta") return;
-  const payDate=prompt("Data de recebimento (AAAA-MM-DD):",today());
-  if(!payDate) return;
+  const c=getClient(r.clientId);
+  const overdue=isOverdue(r.dueDate);
+  showModal(`<div class="modal-title">Registrar Recebimento</div>
+    <div style="margin-bottom:12px;font-size:13px;color:var(--muted)">
+      Cliente: <b style="color:var(--text)">${c?c.name:"—"}</b> &nbsp;|&nbsp;
+      NF: <b style="color:var(--amber)">${r.invoiceNumber}</b> &nbsp;|&nbsp;
+      Parcela: <b>${r.installment}/${r.total}</b>
+    </div>
+    ${overdue?`<div class="alert-red">⚠ Parcela vencida desde ${fmtDate(r.dueDate)}</div>`:""}
+    <div class="form-grid-2">
+      <div class="form-group"><label class="form-label">Data de Recebimento</label>
+        <input id="pr-date" type="date" class="form-input" value="${today()}">
+      </div>
+      <div class="form-group"><label class="form-label">Valor a Receber (R$) <span class="text-muted" style="font-size:10px">— reduza para pagamento parcial</span></label>
+        <input id="pr-amt" type="number" step="0.01" min="0.01" class="form-input" value="${r.amount}">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" style="background:var(--green)" onclick="confirmarPayReceivable(${id})">✓ Confirmar Recebimento</button>
+    </div>`);
+}
+async function confirmarPayReceivable(id){
+  if(!_guardSave()) return;
+  const r=state.receivables.find(x=>x.id===id);
+  if(!r||r.status!=="aberta"){ _doneSave(); return; }
+  const payDate=el("pr-date").value||today();
+  const amt=parseFloat(el("pr-amt").value)||r.amount;
+  if(amt<r.amount-0.01){
+    const remainder=parseFloat((r.amount-amt).toFixed(2));
+    state.receivables.push({...r,id:uid(),amount:remainder,paidAt:null,status:"aberta",installment:r.total+1,total:r.total+1,isSaldo:true});
+    r.amount=parseFloat(amt.toFixed(2));
+  }
   r.status="paga"; r.paidAt=payDate;
-  state.transactions.push({id:uid(),date:payDate,type:"entrada",category:"Vendas",description:`Recebimento ${r.installment}/${r.total} ${r.invoiceNumber}`,amount:r.amount});
-  // update invoice status
+  state.transactions.push({id:uid(),date:payDate,type:"entrada",category:"Vendas",description:`Recebimento ${r.installment}/${r.total} ${r.invoiceNumber}`,amount:parseFloat(amt.toFixed(2))});
   const nfRecs=state.receivables.filter(x=>x.invoiceId===r.invoiceId&&x.status!=="cancelada");
   const allPaid=nfRecs.every(x=>x.status==="paga");
   const anyPaid=nfRecs.some(x=>x.status==="paga");
   const nf=state.invoices.find(x=>x.id===r.invoiceId);
   if(nf) nf.status=allPaid?"paga":anyPaid?"parcial":"emitida";
-  saveState(); renderContas();
+  try{ await saveToFirebase(); closeModal(); renderContas(); showSyncStatus(`✓ Recebimento de ${fmt(parseFloat(amt.toFixed(2)))} registrado`); }
+  finally{ _doneSave(); }
 }
 function payPayable(id){
   const p=state.payables.find(x=>x.id===id);
   if(!p||p.status!=="aberta") return;
-  const payDate=prompt("Data de pagamento (AAAA-MM-DD):",today());
-  if(!payDate) return;
+  const s=getSupplier(p.supplierId);
+  const overdue=isOverdue(p.dueDate);
+  showModal(`<div class="modal-title">Registrar Pagamento</div>
+    <div style="margin-bottom:12px;font-size:13px;color:var(--muted)">
+      Fornecedor: <b style="color:var(--text)">${s?s.name:"—"}</b> &nbsp;|&nbsp;
+      Compra: <b style="color:var(--amber)">${p.purchaseNumber||p.description}</b> &nbsp;|&nbsp;
+      Parcela: <b>${p.installment}/${p.total}</b>
+    </div>
+    ${overdue?`<div class="alert-red">⚠ Parcela vencida desde ${fmtDate(p.dueDate)}</div>`:""}
+    <div class="form-grid-2">
+      <div class="form-group"><label class="form-label">Data de Pagamento</label>
+        <input id="pp-date" type="date" class="form-input" value="${today()}">
+      </div>
+      <div class="form-group"><label class="form-label">Valor a Pagar (R$) <span class="text-muted" style="font-size:10px">— reduza para pagamento parcial</span></label>
+        <input id="pp-amt" type="number" step="0.01" min="0.01" class="form-input" value="${p.amount}">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" style="background:var(--green)" onclick="confirmarPayPayable(${id})">✓ Confirmar Pagamento</button>
+    </div>`);
+}
+async function confirmarPayPayable(id){
+  if(!_guardSave()) return;
+  const p=state.payables.find(x=>x.id===id);
+  if(!p||p.status!=="aberta"){ _doneSave(); return; }
+  const payDate=el("pp-date").value||today();
+  const amt=parseFloat(el("pp-amt").value)||p.amount;
+  if(amt<p.amount-0.01){
+    const remainder=parseFloat((p.amount-amt).toFixed(2));
+    state.payables.push({...p,id:uid(),amount:remainder,paidAt:null,status:"aberta",installment:p.total+1,total:p.total+1,isSaldo:true});
+    p.amount=parseFloat(amt.toFixed(2));
+  }
   p.status="paga"; p.paidAt=payDate;
   const sup=getSupplier(p.supplierId);
-  state.transactions.push({id:uid(),date:payDate,type:"saida",category:"Compras",description:`Pagamento ${p.installment}/${p.total} ${p.purchaseNumber||p.description}${sup?" — "+sup.name:""}`,amount:p.amount});
-  saveState(); renderContas();
+  state.transactions.push({id:uid(),date:payDate,type:"saida",category:"Compras",description:`Pagamento ${p.installment}/${p.total} ${p.purchaseNumber||p.description}${sup?" — "+sup.name:""}`,amount:parseFloat(amt.toFixed(2))});
+  // atualiza status da compra
+  const compraId=p.purchaseId;
+  const allPays=state.payables.filter(x=>x.purchaseId==compraId&&x.status!=="cancelada");
+  const allPaid=allPays.every(x=>x.status==="paga");
+  const anyPaid=allPays.some(x=>x.status==="paga");
+  const compra=state.purchases.find(x=>x.id==compraId);
+  if(compra) compra.status=allPaid?"paga":anyPaid?"parcial":"a pagar";
+  try{ await saveToFirebase(); closeModal(); renderContas(); showSyncStatus(`✓ Pagamento de ${fmt(parseFloat(amt.toFixed(2)))} registrado`); }
+  finally{ _doneSave(); }
 }
 
 // ─── CAIXA ───────────────────────────────────────────────────────────────────
@@ -2192,9 +2244,13 @@ function importData(){
     r.readAsText(f);
   }; inp.click();
 }
-function resetData(){
+async function resetData(){
   if(!confirm("ATENÇÃO: Apagar TODOS os dados e reiniciar com dados de exemplo?")) return;
-  localStorage.removeItem(STORAGE_KEY); loadState(); render(); alert("Dados resetados.");
+  localStorage.removeItem(STORAGE_KEY);
+  state = JSON.parse(JSON.stringify(defaultState));
+  await saveToFirebase();
+  render();
+  alert("Dados resetados.");
 }
 
 // ─── INIT ────────────────────────────────────────────────────────────────────
@@ -2213,7 +2269,7 @@ async function saveToFirebase() {
   try {
     const db = window._db;
     const { doc, setDoc } = window._fbFns;
-    const uid = window._currentUser ? window._currentUser.uid : 'default';
+    const uid = window._companyId || (window._currentUser ? window._currentUser.uid : 'default');
     const toSave = {
       products: state.products,
       clients: state.clients,
@@ -2244,7 +2300,7 @@ async function loadFromFirebase() {
   try {
     const db = window._db;
     const { doc, getDoc } = window._fbFns;
-    const uid = window._currentUser ? window._currentUser.uid : 'default';
+    const uid = window._companyId || (window._currentUser ? window._currentUser.uid : 'default');
     const snap = await getDoc(doc(db, 'empresas', uid));
     if (snap.exists()) {
       const data = snap.data();
@@ -2379,7 +2435,9 @@ async function loadUsers() {
     const snap = await getDocs(collection(window._db, 'users'));
     const users = [];
     snap.forEach(d => users.push({uid: d.id, ...d.data()}));
-    return users;
+    // Filtra apenas usuários da mesma empresa
+    const myCompanyId = window._companyId;
+    return myCompanyId ? users.filter(u => u.companyId === myCompanyId) : users;
   } catch(e) { return []; }
 }
 
@@ -2464,8 +2522,8 @@ async function createNewUser() {
     const newUid = cred.user.uid;
     await secondaryAuth.signOut();
     await secondaryApp.delete();
-    // Save profile to Firestore
-    await setDoc(doc(window._db, 'users', newUid), { name, email, role, active: true, createdAt: new Date().toISOString() });
+    // Save profile to Firestore (com mesmo companyId do admin que criou)
+    await setDoc(doc(window._db, 'users', newUid), { name, email, role, active: true, createdAt: new Date().toISOString(), companyId: window._companyId });
     closeModal();
     renderUsuarios();
     showSyncStatus('✓ Usuário criado');
@@ -2558,7 +2616,7 @@ async function confirmarBaixa(nfId){
       if(amt<r.amount-0.01){
         // pagamento parcial — cria saldo devedor como nova parcela
         const remainder=parseFloat((r.amount-amt).toFixed(2));
-        state.receivables.push({...r,id:uid(),amount:remainder,paidAt:null,status:"aberta",installment:r.total+1,total:r.total+1});
+        state.receivables.push({...r,id:uid(),amount:remainder,paidAt:null,status:"aberta",installment:r.total+1,total:r.total+1,isSaldo:true});
         r.amount=parseFloat(amt.toFixed(2));
       }
       r.status="paga"; r.paidAt=payDate;
@@ -2616,6 +2674,7 @@ function filterPedidos(){
       <td><span style="color:${statusColor[o.status]||"var(--muted)"}">${statusLabel[o.status]||o.status}</span></td>
       <td><div class="row" style="gap:4px">
         <button class="btn btn-ghost" style="padding:4px 8px;font-size:12px" onclick="viewPedido('${o.id}')">Ver</button>
+        ${o.status==="rascunho"||o.status==="confirmado"?`<button class="btn btn-ghost" style="padding:4px 8px;font-size:12px" onclick="editarPedidoModal('${o.id}')">Editar</button>`:""}
         ${o.status==="rascunho"?`<button class="btn btn-primary" style="padding:4px 8px;font-size:12px" onclick="confirmarPedido('${o.id}')">Confirmar</button>`:""}
         ${o.status==="confirmado"?`<button class="btn btn-primary" style="padding:4px 8px;font-size:12px;background:var(--green)" onclick="faturarPedido('${o.id}')">Faturar</button>`:""}
         ${o.status==="rascunho"||o.status==="confirmado"?`<button class="btn btn-ghost" style="padding:4px 8px;font-size:12px;color:var(--red)" onclick="cancelarPedido('${o.id}')">Cancelar</button>`:""}
@@ -2678,7 +2737,7 @@ function pedidoRenderProdList(search){
   const listEl=el("ped-prod-list");
   if(!listEl) return;
   const q=norm(search||"");
-  const prods=state.products.filter(p=>p.active!==false&&(!q||norm(p.name).includes(q)||(p.sku&&norm(p.sku).includes(q))));
+  const prods=state.products.filter(p=>p.active!==false&&(!q||norm(p.name).includes(q)||(p.code&&norm(p.code).includes(q))));
   if(!prods.length){ listEl.innerHTML=`<div style="padding:14px;text-align:center;color:var(--muted);font-size:13px">Nenhum produto encontrado</div>`; return; }
   listEl.innerHTML=prods.map(p=>`
     <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--border);background:var(--bg2);transition:background .1s" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background='var(--bg2)'">
@@ -2769,6 +2828,82 @@ async function cancelarPedido(id){
   if(!confirm("Cancelar pedido "+o.number+"?")) return;
   o.status="cancelado";
   await saveToFirebase(); renderPedidos();
+}
+function editarPedidoModal(id){
+  const o=state.orders.find(x=>x.id==id);
+  if(!o) return;
+  if(o.status!=="rascunho"&&o.status!=="confirmado"){ alert("Apenas pedidos em rascunho ou confirmado podem ser editados."); return; }
+  state.pedidoItems=[...o.items];
+  const clients=state.clients||[];
+  openModal(`<div class="modal-title">Editar Pedido ${o.number}</div>
+    <div class="form-grid-2">
+      <div class="form-group"><label class="form-label">Número</label>
+        <input id="ped-num" class="form-input" value="${o.number}" readonly>
+      </div>
+      <div class="form-group"><label class="form-label">Data</label>
+        <input id="ped-date" type="date" class="form-input" value="${o.date}">
+      </div>
+    </div>
+    <div class="form-group"><label class="form-label">Cliente</label>
+      <select id="ped-client" class="form-input">
+        <option value="">Selecione cliente...</option>
+        ${clients.map(c=>`<option value="${c.id}" ${c.id==o.clientId?"selected":""}>${c.name}</option>`).join("")}
+      </select>
+    </div>
+    <div class="form-grid-3">
+      <div class="form-group"><label class="form-label">Condição de Pagamento</label>
+        <select id="ped-terms" class="form-input">
+          ${PAY_TERMS.map(t=>`<option ${t===o.paymentTerms?"selected":""}>${t}</option>`).join("")}
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Desconto Geral (%)</label>
+        <input id="ped-disc" type="number" min="0" max="100" step="0.1" class="form-input" value="${o.discount||0}" oninput="pedidoRenderItems()">
+      </div>
+      <div class="form-group"><label class="form-label">Frete (R$)</label>
+        <input id="ped-freight" type="number" min="0" step="0.01" class="form-input" value="${o.freight||0}" oninput="pedidoRenderItems()">
+      </div>
+    </div>
+    <div class="form-group"><label class="form-label">Observações</label>
+      <textarea id="ped-notes" class="form-input" rows="2" style="resize:vertical">${(o.notes||"").replace(/</g,"&lt;").replace(/>/g,"&gt;")}</textarea>
+    </div>
+    <div class="divider"></div>
+    <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:10px;letter-spacing:.06em">ITENS DO PEDIDO</div>
+    <div style="margin-bottom:10px">
+      <input id="ped-prod-search" class="form-input" style="width:100%;margin-bottom:6px" placeholder="🔍 Buscar produto pelo nome..." oninput="pedidoRenderProdList(this.value)" autocomplete="off">
+      <div id="ped-prod-list" style="max-height:210px;overflow-y:auto;border:1px solid var(--border);border-radius:6px"></div>
+    </div>
+    <div id="ped-items-list"></div>
+    <div id="ped-totals"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-ghost" onclick="salvarEditPedido('${o.id}')">Salvar Rascunho</button>
+      <button class="btn btn-primary" onclick="salvarEditPedido('${o.id}',true)">Confirmar Pedido</button>
+    </div>`,true);
+  pedidoRenderItems();
+  pedidoRenderProdList("");
+}
+async function salvarEditPedido(id,confirmar=false){
+  if(!_guardSave()) return;
+  if(!state.pedidoItems.length){ _doneSave(); alert("Adicione pelo menos um item ao pedido."); return; }
+  const o=state.orders.find(x=>x.id==id);
+  if(!o){ _doneSave(); return; }
+  const clientId=parseInt(el("ped-client").value)||0;
+  const disc=parseFloat(el("ped-disc").value)||0;
+  const freight=parseFloat(el("ped-freight").value)||0;
+  const sub=pedidoGetSubtotal();
+  const total=sub*(1-disc/100)+freight;
+  o.date=el("ped-date").value||today();
+  o.clientId=clientId;
+  o.paymentTerms=el("ped-terms").value;
+  o.discount=disc; o.freight=freight;
+  o.notes=el("ped-notes").value;
+  o.items=[...state.pedidoItems];
+  o.subtotal=sub; o.total=total;
+  if(confirmar) o.status="confirmado";
+  state.pedidoItems=[];
+  await saveToFirebase(); _doneSave();
+  closeModal(); renderPedidos();
+  showSyncStatus(confirmar?"✓ Pedido confirmado":"✓ Pedido atualizado");
 }
 function faturarPedido(id){
   const o=state.orders.find(x=>x.id==id);
@@ -2913,6 +3048,7 @@ function viewPedido(id){
       <span style="font-size:15px;font-weight:700;color:var(--amber)">Total: ${fmt(o.total)}</span>
     </div>
     ${o.notes?`<div style="margin-top:12px;color:var(--muted);font-size:13px">Obs: ${o.notes}</div>`:""}
+    ${o.status==="faturado"&&o.invoiceId?`<div style="margin-top:12px;padding:10px 12px;background:var(--bg2);border-radius:6px;border:1px solid var(--border);display:flex;align-items:center;gap:8px"><span style="font-size:12px;color:var(--muted)">Nota Fiscal emitida:</span><span class="badge" style="cursor:pointer;text-decoration:underline;background:var(--green);color:#fff" onclick="viewNF(${o.invoiceId})">${(state.invoices.find(x=>x.id==o.invoiceId)||{}).number||"Ver NF"} ↗</span></div>`:""}
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal()">Fechar</button>
     </div>`);
@@ -2932,7 +3068,7 @@ function renderDevolucoes(){
     </div>
     <div class="card" style="overflow-x:auto">
       <table class="table">
-        <thead><tr><th>Número</th><th>Data</th><th>NF Origem</th><th>Cliente</th><th>Itens</th><th>Total</th><th>Motivo</th></tr></thead>
+        <thead><tr><th>Número</th><th>Data</th><th>NF Origem</th><th>Cliente</th><th>Itens</th><th>Total</th><th>Motivo</th><th>Status</th><th>Ações</th></tr></thead>
         <tbody id="dev-tbody"></tbody>
       </table>
     </div>`;
@@ -2953,9 +3089,33 @@ function filterDevolucoes(){
       <td>${d.nfId?`<span class="badge" style="background:var(--bg2);cursor:pointer;text-decoration:underline" onclick="viewNF(${d.nfId})" title="Ver NF">${d.nfNumber||"—"}</span>`:`<span class="badge" style="background:var(--bg2)">${d.nfNumber||"—"}</span>`}</td>
       <td>${c?c.name:"—"}</td>
       <td>${d.items.length} item(s)</td>
-      <td style="color:var(--amber)">${fmt(d.total)}</td>
+      <td style="color:${d.status==="cancelada"?"var(--muted)":"var(--amber)"};${d.status==="cancelada"?"text-decoration:line-through":""}">${fmt(d.total)}</td>
       <td style="color:var(--muted);font-size:12px">${d.reason||"—"}</td>
-    </tr>`;}).join(""):`<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px">Nenhuma devolução registrada</td></tr>`;
+      <td><span class="badge ${d.status==="cancelada"?"bg-gray":"bg-green"}">${d.status==="cancelada"?"cancelada":"ativa"}</span></td>
+      <td>${d.status!=="cancelada"?`<button class="btn btn-ghost" style="padding:4px 8px;font-size:12px;color:var(--red)" onclick="cancelarDevolucao('${d.id}')">Cancelar</button>`:""}</td>
+    </tr>`;}).join(""):`<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:32px">Nenhuma devolução registrada</td></tr>`;
+}
+async function cancelarDevolucao(id){
+  const d=state.returns.find(x=>x.id==id);
+  if(!d) return;
+  if(d.status==="cancelada"){ alert("Esta devolução já está cancelada."); return; }
+  if(!confirm("Cancelar devolução "+d.number+"? O estoque será revertido.")) return;
+  const date=today();
+  // Reverse stock
+  d.items.forEach(it=>{ const p=getProd(it.productId); if(p) p.stock=Math.max(0,p.stock-it.qty); });
+  // Stock movement for reversal
+  if(!state.stockMovements) state.stockMovements=[];
+  d.items.forEach(it=>state.stockMovements.push({id:uid(),date,productId:it.productId,type:"saida",qty:it.qty,reason:"Cancelamento devolução",reference:d.number}));
+  // Reverse caixa entry
+  if(!state.transactions) state.transactions=[];
+  state.transactions.push({id:uid(),date,type:"saida",category:"Devolução",description:`Estorno ${d.number} — NF ${d.nfNumber}`,amount:d.total});
+  // Reverse NF returnedTotal
+  const nf=state.invoices.find(x=>x.id==d.nfId);
+  if(nf&&nf.returnedTotal){ nf.returnedTotal=Math.max(0,parseFloat((nf.returnedTotal-d.total).toFixed(2))); }
+  d.status="cancelada";
+  await saveToFirebase();
+  filterDevolucoes();
+  showSyncStatus("✓ Devolução "+d.number+" cancelada");
 }
 function openDevolucaoModal(nfId){
   const nf=state.invoices.find(n=>n.id==nfId);
@@ -3020,10 +3180,36 @@ async function salvarDevolucao(nfId){
   });
   // Stock movement
   if(!state.stockMovements) state.stockMovements=[];
-  devItems.forEach(it=>state.stockMovements.push({date,productId:it.productId,type:"entrada",qty:it.qty,ref:devNum}));
+  devItems.forEach(it=>state.stockMovements.push({id:uid(),date,productId:it.productId,type:"entrada",qty:it.qty,reason:"Devolução",reference:devNum}));
   // Credit note in caixa
   if(!state.transactions) state.transactions=[];
   state.transactions.push({id:Date.now()+2,date,type:"entrada",category:"Devolução",description:`Devolução ${devNum} — NF ${nf.number}`,amount:total});
+  // Update NF returnedTotal
+  nf.returnedTotal=parseFloat(((nf.returnedTotal||0)+total).toFixed(2));
+  // Reduce open receivables (oldest due date first)
+  let devRem=total;
+  const openRecs=(state.receivables||[])
+    .filter(r=>r.invoiceId===nf.id&&r.status==="aberta")
+    .sort((a,b)=>a.dueDate.localeCompare(b.dueDate));
+  for(const r of openRecs){
+    if(devRem<=0.005) break;
+    if(r.amount<=devRem+0.005){
+      devRem=parseFloat((devRem-r.amount).toFixed(2));
+      r.status="paga"; r.paidAt=date;
+    } else {
+      const saldo=parseFloat((r.amount-devRem).toFixed(2));
+      r.amount=parseFloat(devRem.toFixed(2));
+      r.status="paga"; r.paidAt=date;
+      if(!state.receivables) state.receivables=[];
+      state.receivables.push({...r,id:uid(),amount:saldo,paidAt:null,status:"aberta",isSaldo:true});
+      devRem=0;
+    }
+  }
+  // Update NF payment status
+  const nfRecs=(state.receivables||[]).filter(x=>x.invoiceId===nf.id&&x.status!=="cancelada");
+  const allDevPaid=nfRecs.length>0&&nfRecs.every(x=>x.status==="paga");
+  const anyDevPaid=nfRecs.some(x=>x.status==="paga");
+  if(nf.status!=="cancelada") nf.status=allDevPaid?"paga":anyDevPaid?"parcial":"emitida";
   try{
     await saveToFirebase();
     closeModal();
