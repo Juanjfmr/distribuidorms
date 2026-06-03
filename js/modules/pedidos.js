@@ -377,7 +377,7 @@ async function emitirNFdePedido(nfNum, pedidoId){
   const o=state.orders.find(x=>x.id==pedidoId);
   if(o){ o.status="faturado"; o.invoiceId=inv.id; }
   state.nfItems=[];
-  try{ await saveToFirebase(); closeModal(); filterNotas(); showSyncStatus("✓ NF emitida e pedido faturado"); }
+  try{ await saveToFirebase(); closeModal(); renderPedidos(); showSyncStatus("✓ NF emitida e pedido faturado"); }
   finally{ _doneSave(); }
 }
 function viewPedido(id){
