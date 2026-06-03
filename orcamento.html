@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Orçamento — Sistema 2R Comércio</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: Arial, sans-serif; font-size: 13px; color: #222; background: #fff; padding: 40px; max-width: 860px; margin: 0 auto; }
+
+  h1 { font-size: 22px; color: #1a1a1a; margin-bottom: 4px; }
+  h2 { font-size: 13px; color: #666; font-weight: normal; margin-bottom: 32px; letter-spacing: .04em; }
+
+  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #222; padding-bottom: 16px; margin-bottom: 28px; }
+  .header-left h1 { font-size: 20px; }
+  .header-left p { font-size: 12px; color: #888; margin-top: 4px; }
+  .header-right { text-align: right; font-size: 12px; color: #555; line-height: 1.8; }
+  .header-right strong { font-size: 15px; color: #222; }
+
+  .section { margin-bottom: 22px; }
+  .section-title { font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: .08em; color: #888; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid #e0e0e0; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 6px; }
+  thead tr { background: #f5f5f5; }
+  th { padding: 7px 10px; text-align: left; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: .05em; color: #555; border: 1px solid #e0e0e0; }
+  td { padding: 7px 10px; border: 1px solid #e8e8e8; }
+  tr:nth-child(even) td { background: #fafafa; }
+  td.num { text-align: right; }
+  td.hours { text-align: center; color: #555; }
+
+  .subtotal-row td { background: #f0f0f0 !important; font-weight: bold; font-size: 12px; }
+
+  .summary-table th { background: #222; color: #fff; }
+  .summary-table td { font-size: 13px; }
+  .summary-table tr:last-child td { background: #1a1a1a !important; color: #fff; font-weight: bold; font-size: 14px; }
+  .summary-table .min { color: #c0392b; font-weight: bold; }
+  .summary-table .max { color: #27ae60; font-weight: bold; }
+
+  .market-table th { background: #444; color: #fff; }
+
+  .highlight-box { background: #fff8e1; border: 1px solid #f0c040; border-radius: 4px; padding: 14px 18px; margin: 24px 0; font-size: 13px; line-height: 1.7; }
+  .highlight-box strong { color: #b8860b; }
+
+  .footer { margin-top: 36px; padding-top: 14px; border-top: 1px solid #ccc; font-size: 11px; color: #999; display: flex; justify-content: space-between; }
+
+  .tag { display: inline-block; background: #f0f0f0; border-radius: 3px; padding: 2px 7px; font-size: 11px; color: #555; margin-left: 6px; }
+
+  @media print {
+    body { padding: 20px; }
+    .no-print { display: none; }
+  }
+
+  .print-btn { position: fixed; bottom: 30px; right: 30px; background: #222; color: #fff; border: none; padding: 12px 22px; font-size: 14px; border-radius: 6px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,.2); }
+  .print-btn:hover { background: #444; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <h1>Orçamento de Desenvolvimento</h1>
+    <p>Sistema de Gestão Empresarial — 2R Comércio</p>
+  </div>
+  <div class="header-right">
+    <div>Data: <strong id="doc-date"></strong></div>
+    <div style="margin-top:6px">Tipo: Desenvolvimento sob medida</div>
+    <div>Stack: HTML · CSS · JavaScript · Firebase</div>
+  </div>
+</div>
+
+<!-- MÓDULO 1 -->
+<div class="section">
+  <div class="section-title">1. Base / Arquitetura do Sistema</div>
+  <table>
+    <thead><tr><th>Item</th><th style="width:80px;text-align:center">Horas</th><th style="width:120px;text-align:right">Valor mín.</th><th style="width:120px;text-align:right">Valor máx.</th></tr></thead>
+    <tbody>
+      <tr><td>Estrutura HTML/CSS/JS single-file</td><td class="hours">6h</td><td class="num">R$ 720</td><td class="num">R$ 960</td></tr>
+      <tr><td>Design system completo (dark theme, componentes, responsivo)</td><td class="hours">12h</td><td class="num">R$ 1.440</td><td class="num">R$ 1.920</td></tr>
+      <tr><td>Firebase Auth (login, logout, reset senha)</td><td class="hours">8h</td><td class="num">R$ 960</td><td class="num">R$ 1.280</td></tr>
+      <tr><td>Firebase Firestore (sync, modo offline, fallback localStorage)</td><td class="hours">10h</td><td class="num">R$ 1.200</td><td class="num">R$ 1.600</td></tr>
+      <tr><td>Sistema de roles (Admin, Vendedor, Visualizador)</td><td class="hours">6h</td><td class="num">R$ 720</td><td class="num">R$ 960</td></tr>
+      <tr><td>Navegação, topbar, sidebar responsiva</td><td class="hours">4h</td><td class="num">R$ 480</td><td class="num">R$ 640</td></tr>
+      <tr class="subtotal-row"><td>Subtotal</td><td class="hours">46h</td><td class="num">R$ 5.520</td><td class="num">R$ 7.360</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- MÓDULO 2 -->
+<div class="section">
+  <div class="section-title">2. Dashboard</div>
+  <table>
+    <thead><tr><th>Item</th><th style="width:80px;text-align:center">Horas</th><th style="width:120px;text-align:right">Valor mín.</th><th style="width:120px;text-align:right">Valor máx.</th></tr></thead>
+    <tbody>
+      <tr><td>KPIs (saldo, vendas, a receber, vencidas)</td><td class="hours">3h</td><td class="num">R$ 360</td><td class="num">R$ 480</td></tr>
+      <tr><td>Gráfico de evolução mensal (últimos 6 meses)</td><td class="hours">4h</td><td class="num">R$ 480</td><td class="num">R$ 640</td></tr>
+      <tr><td>Últimas transações e notas recentes</td><td class="hours">2h</td><td class="num">R$ 240</td><td class="num">R$ 320</td></tr>
+      <tr><td>Alertas de estoque baixo e inadimplência</td><td class="hours">2h</td><td class="num">R$ 240</td><td class="num">R$ 320</td></tr>
+      <tr class="subtotal-row"><td>Subtotal</td><td class="hours">11h</td><td class="num">R$ 1.320</td><td class="num">R$ 1.760</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- MÓDULO 3 -->
+<div class="section">
+  <div class="section-title">3. Produtos</div>
+  <table>
+    <thead><tr><th>Item</th><th style="width:80px;text-align:center">Horas</th><th style="width:120px;text-align:right">Valor mín.</th><th style="width:120px;text-align:right">Valor máx.</th></tr></thead>
+    <tbody>
+      <tr><td>CRUD completo (código, categoria, unidade, estoque mínimo)</td><td class="hours">6h</td><td class="num">R$ 720</td><td class="num">R$ 960</td></tr>
+      <tr><td>Histórico de preços</td><td class="hours">3h</td><td class="num">R$ 360</td><td class="num">R$ 480</td></tr>
+      <tr><td>Soft delete — inativar e reativar produtos</td><td class="hours">2h</td><td class="num">R$ 240</td><td class="num">R$ 320</td></tr>
+      <tr><td>Preço de custo obrigatório</td><td class="hours">1h</td><td class="num">R$ 120</td><td class="num">R$ 160</td></tr>
+      <tr><td>Detecção de cadastros duplicados / similares</td><td class="hours">2h</td><td class="num">R$ 240</td><td class="num">R$ 320</td></tr>
+      <tr class="subtotal-row"><td>Subtotal</td><td class="hours">14h</td><td class="num">R$ 1.680</td><td class="num">R$ 2.240</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- MÓDULO 4 -->
+<div class="section">
+  <div class="section-title">4. Clientes e Fornecedores</div>
+  <table>
+    <thead><tr><th>Item</th><th style="width:80px;text-align:center">Horas</th><th style="width:120px;text-align:right">Valor mín.</th><th style="width:120px;text-align:right">Valor máx.</th></tr></thead>
+    <tbody>
+      <tr><td>CRUD Clientes (limite de crédito, CNPJ, contato)</td><td class="hours">5h</td><td class="num">R$ 600</td><td class="num">R$ 800</td></tr>
+      <tr><td>CRUD Fornecedores (prazo de pagamento, contato)</td><td class="hours">4h</td><td class="num">R$ 480</td><td class="num">R$ 640</td></tr>
+      <tr class="subtotal-row"><td>Subtotal</td><td class="hours">9h</td><td class="num">R$ 1.080</td><td class="num">R$ 1.440</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- MÓDULO 5 -->
+<div class="section">
+  <div class="section-title">5. Pedidos de Venda</div>
+  <table>
+    <thead><tr><th>Item</th><th style="width:80px;text-align:center">Horas</th><th style="width:120px;text-align:right">Valor mín.</th><th style="width:120px;text-align:right">Valor máx.</th></tr></thead>
+    <tbody>
+      <tr><td>CRUD pedidos (rascunho, confirmado, faturado, cancelado)</td><td class="hours">6h</td><td class="num">R$ 720</td><td class="num">R$ 960</td></tr>
+      <tr><td>Itens com desconto por item, frete e desconto geral</td><td class="hours">4h</td><td class="num">R$ 480</td><td class="num">R$ 640</td></tr>
+      <tr><td>Observações vinculadas à Nota Fiscal</td><td class="hours">2h</td><td class="num">R$ 240</td><td class="num">R$ 320</td></tr>
+      <tr><td>Faturar pedido → geração automática de NF</td><td class="hours">4h</td><td class="num">R$ 480</td><td class="num">R$ 640</td></tr>
+      <tr class="subtotal-row"><td>Subtotal</td><td class="hours">16h</td><td class="num">R$ 1.920</td><td class="num">R$ 2.560</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- MÓDULO 6 -->
+<div class="section">
+  <div class="section-title">6. Nota Fiscal — módulo principal</div>
+  <table>
+    <thead><tr><th>Item</th><th style="width:80px;text-align:center">Horas</th><th style="width:120px;text-align:right">Valor mín.</th><th style="width:120px;text-align:right">Valor máx.</th></tr></thead>
+    <tbody>
+      <tr><td>Emissão completa de NF com busca de produtos</td><td class="hours">8h</td><td class="num">R$ 960</td><td class="num">R$ 1.280</td></tr>
+      <tr><td>Desconto geral + desconto por item</td><td class="hours">2h</td><td class="num">R$ 240</td><td class="num">R$ 320</td></tr>
+      <tr><td>Frete no PDF + Frete interno (lança saída no caixa)</td><td class="hours">3h</td><td class="num">R$ 360</td><td class="num">R$ 480</td></tr>
+      <tr><td>Observações (exibidas no PDF)</td><td class="hours">2h</td><td class="num">R$ 240</td><td class="num">R$ 320</td></tr>
+      <tr><td>Custos operacionais (cliente paga / empresa paga)</td><td class="hours">5h</td><td class="num">R$ 600</td><td class="num">R$ 800</td></tr>
+      <tr><td>Verificação de limite de crédito</td><td class="hours">2h</td><td class="num">R$ 240</td><td class="num">R$ 320</td></tr>
+      <tr><td>Bloqueio de estoque insuficiente</td><td class="hours">2h</td><td class="num">R$ 240</td><td class="num">R$ 320</td></tr>
+      <tr><td>Cancelamento com restauração de estoque</td><td class="hours">3h</td><td class="num">R$ 360</td><td class="num">R$ 480</td></tr>
+      <tr><td>Dar baixa / recebimento parcial</td><td class="hours">3h</td><td class="num">R$ 360</td><td class="num">R$ 480</td></tr>
+      <tr><td>Filtros (status, período, busca) e ordenação por coluna</td><td class="hours">3h</td><td class="num">R$ 360</td><td class="num">R$ 480</td></tr>
+      <tr><td>Impressão em PDF (layout profissional com dados da empresa)</td><td class="hours">4h</td><td class="num">R$ 480</td><td class="num">R$ 640</td></tr>
+      <tr class="subtotal-row"><td>Subtotal</td><td class="hours">37h</td><td class="num">R$ 4.440</td><td class="num">R$ 5.920</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- MÓDULO 7 -->
+<div class="section">
+  <div class="section-title">7. Devoluções</div>
+  <table>
+    <thead><tr><th>Item</th><th style="width:80px;text-align:center">Horas</th><th style="width:120px;text-align:right">Valor mín.</th><th style="width:120px;text-align:right">Valor máx.</th></tr></thead>
+    <tbody>
+      <tr><td>Registro de devolução vinculado à NF</td><td class="hours">3h</td><td class="num">R$ 360</td><td class="num">R$ 480</td></tr>
+      <tr><td>Seleção parcial de itens e quantidades</td><td class="hours">3h</td><td class="num">R$ 360</td><td class="num">R$ 480</td></tr>
+      <tr><td>Restauração de estoque + lançamento automático no caixa</td><td class="hours">2h</td><td class="num">R$ 240</td><td class="num">R$ 320</td></tr>
+      <tr><td>Link clicável para a NF de origem</td><td class="hours">1h</td><td class="num">R$ 120</td><td class="num">R$ 160</td></tr>
+      <tr class="subtotal-row"><td>Subtotal</td><td class="hours">9h</td><td class="num">R$ 1.080</td><td class="num">R$ 1.440</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- MÓDULO 8 -->
+<div class="section">
+  <div class="section-title">8. Compras</div>
+  <table>
+    <thead><tr><th>Item</th><th style="width:80px;text-align:center">Horas</th><th style="width:120px;text-align:right">Valor mín.</th><th style="width:120px;text-align:right">Valor máx.</th></tr></thead>
+    <tbody>
+      <tr><td>CRUD ordens de compra com itens</td><td class="hours">5h</td><td class="num">R$ 600</td><td class="num">R$ 800</td></tr>
+      <tr><td>Entrada de estoque automática ao receber</td><td class="hours">2h</td><td class="num">R$ 240</td><td class="num">R$ 320</td></tr>
+      <tr><td>Contas a pagar geradas automaticamente</td><td class="hours">3h</td><td class="num">R$ 360</td><td class="num">R$ 480</td></tr>
+      <tr><td>Cadastrar produto direto da tela de compra</td><td class="hours">3h</td><td class="num">R$ 360</td><td class="num">R$ 480</td></tr>
+      <tr class="subtotal-row"><td>Subtotal</td><td class="hours">13h</td><td class="num">R$ 1.560</td><td class="num">R$ 2.080</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- MÓDULO 9 -->
+<div class="section">
+  <div class="section-title">9. Contas a Receber / Pagar</div>
+  <table>
+    <thead><tr><th>Item</th><th style="width:80px;text-align:center">Horas</th><th style="width:120px;text-align:right">Valor mín.</th><th style="width:120px;text-align:right">Valor máx.</th></tr></thead>
+    <tbody>
+      <tr><td>Geração automática de parcelas (todos os prazos de pagamento)</td><td class="hours">4h</td><td class="num">R$ 480</td><td class="num">R$ 640</td></tr>
+      <tr><td>Baixa de pagamento total e parcial</td><td class="hours">3h</td><td class="num">R$ 360</td><td class="num">R$ 480</td></tr>
+      <tr><td>Indicador de parcelas vencidas e inadimplência</td><td class="hours">2h</td><td class="num">R$ 240</td><td class="num">R$ 320</td></tr>
+      <tr class="subtotal-row"><td>Subtotal</td><td class="hours">9h</td><td class="num">R$ 1.080</td><td class="num">R$ 1.440</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- MÓDULO 10 -->
+<div class="section">
+  <div class="section-title">10. Fluxo de Caixa</div>
+  <table>
+    <thead><tr><th>Item</th><th style="width:80px;text-align:center">Horas</th><th style="width:120px;text-align:right">Valor mín.</th><th style="width:120px;text-align:right">Valor máx.</th></tr></thead>
+    <tbody>
+      <tr><td>Lançamentos manuais de entrada e saída</td><td class="hours">3h</td><td class="num">R$ 360</td><td class="num">R$ 480</td></tr>
+      <tr><td>Categorias financeiras por tipo de lançamento</td><td class="hours">2h</td><td class="num">R$ 240</td><td class="num">R$ 320</td></tr>
+      <tr><td>Filtros e saldo consolidado</td><td class="hours">2h</td><td class="num">R$ 240</td><td class="num">R$ 320</td></tr>
+      <tr class="subtotal-row"><td>Subtotal</td><td class="hours">7h</td><td class="num">R$ 840</td><td class="num">R$ 1.120</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- MÓDULO 11 -->
+<div class="section">
+  <div class="section-title">11. Relatórios</div>
+  <table>
+    <thead><tr><th>Item</th><th style="width:80px;text-align:center">Horas</th><th style="width:120px;text-align:right">Valor mín.</th><th style="width:120px;text-align:right">Valor máx.</th></tr></thead>
+    <tbody>
+      <tr><td>Visão Geral (KPIs, gráfico mensal, top produtos, margem, inadimplência)</td><td class="hours">8h</td><td class="num">R$ 960</td><td class="num">R$ 1.280</td></tr>
+      <tr><td>Curva ABC (classificação A/B/C por receita)</td><td class="hours">5h</td><td class="num">R$ 600</td><td class="num">R$ 800</td></tr>
+      <tr><td>Relatório Por NF (lucro, custo, margem por nota fiscal)</td><td class="hours">6h</td><td class="num">R$ 720</td><td class="num">R$ 960</td></tr>
+      <tr><td>Filtro por período em todos os relatórios</td><td class="hours">2h</td><td class="num">R$ 240</td><td class="num">R$ 320</td></tr>
+      <tr><td>Impressão dos relatórios (print button + @media print)</td><td class="hours">1h</td><td class="num">R$ 120</td><td class="num">R$ 160</td></tr>
+      <tr class="subtotal-row"><td>Subtotal</td><td class="hours">22h</td><td class="num">R$ 2.640</td><td class="num">R$ 3.520</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- MÓDULO 12 -->
+<div class="section">
+  <div class="section-title">12. Configurações e Extras</div>
+  <table>
+    <thead><tr><th>Item</th><th style="width:80px;text-align:center">Horas</th><th style="width:120px;text-align:right">Valor mín.</th><th style="width:120px;text-align:right">Valor máx.</th></tr></thead>
+    <tbody>
+      <tr><td>Dados da empresa (exibidos no PDF da NF)</td><td class="hours">2h</td><td class="num">R$ 240</td><td class="num">R$ 320</td></tr>
+      <tr><td>Export / Import de dados em JSON (backup)</td><td class="hours">2h</td><td class="num">R$ 240</td><td class="num">R$ 320</td></tr>
+      <tr><td>Gerenciamento de usuários (criar conta, definir perfil)</td><td class="hours">4h</td><td class="num">R$ 480</td><td class="num">R$ 640</td></tr>
+      <tr><td>Status de sincronização Firebase em tempo real</td><td class="hours">1h</td><td class="num">R$ 120</td><td class="num">R$ 160</td></tr>
+      <tr class="subtotal-row"><td>Subtotal</td><td class="hours">9h</td><td class="num">R$ 1.080</td><td class="num">R$ 1.440</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- RESUMO -->
+<div class="section" style="margin-top:32px">
+  <div class="section-title">Resumo Geral</div>
+  <table class="summary-table">
+    <thead><tr><th>Módulo</th><th style="width:80px;text-align:center">Horas</th><th style="width:130px;text-align:right">Valor mín.</th><th style="width:130px;text-align:right">Valor máx.</th></tr></thead>
+    <tbody>
+      <tr><td>1. Base / Arquitetura</td><td class="hours">46h</td><td class="num">R$ 5.520</td><td class="num">R$ 7.360</td></tr>
+      <tr><td>2. Dashboard</td><td class="hours">11h</td><td class="num">R$ 1.320</td><td class="num">R$ 1.760</td></tr>
+      <tr><td>3. Produtos</td><td class="hours">14h</td><td class="num">R$ 1.680</td><td class="num">R$ 2.240</td></tr>
+      <tr><td>4. Clientes e Fornecedores</td><td class="hours">9h</td><td class="num">R$ 1.080</td><td class="num">R$ 1.440</td></tr>
+      <tr><td>5. Pedidos de Venda</td><td class="hours">16h</td><td class="num">R$ 1.920</td><td class="num">R$ 2.560</td></tr>
+      <tr><td>6. Nota Fiscal</td><td class="hours">37h</td><td class="num">R$ 4.440</td><td class="num">R$ 5.920</td></tr>
+      <tr><td>7. Devoluções</td><td class="hours">9h</td><td class="num">R$ 1.080</td><td class="num">R$ 1.440</td></tr>
+      <tr><td>8. Compras</td><td class="hours">13h</td><td class="num">R$ 1.560</td><td class="num">R$ 2.080</td></tr>
+      <tr><td>9. Contas a Receber / Pagar</td><td class="hours">9h</td><td class="num">R$ 1.080</td><td class="num">R$ 1.440</td></tr>
+      <tr><td>10. Fluxo de Caixa</td><td class="hours">7h</td><td class="num">R$ 840</td><td class="num">R$ 1.120</td></tr>
+      <tr><td>11. Relatórios</td><td class="hours">22h</td><td class="num">R$ 2.640</td><td class="num">R$ 3.520</td></tr>
+      <tr><td>12. Configurações e Extras</td><td class="hours">9h</td><td class="num">R$ 1.080</td><td class="num">R$ 1.440</td></tr>
+      <tr><td><strong>TOTAL</strong></td><td class="hours"><strong>202h</strong></td><td class="num min"><strong>R$ 24.240</strong></td><td class="num max"><strong>R$ 32.320</strong></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- REFERÊNCIA DE MERCADO -->
+<div class="section" style="margin-top:28px">
+  <div class="section-title">Referência de Mercado</div>
+  <table class="market-table">
+    <thead><tr><th>Perfil do Desenvolvedor</th><th style="text-align:center">Taxa / hora</th><th style="text-align:right">Total estimado</th></tr></thead>
+    <tbody>
+      <tr><td>Freelancer Júnior</td><td class="hours">R$ 60–80/h</td><td class="num">R$ 12.000 – R$ 16.000</td></tr>
+      <tr><td>Freelancer Pleno</td><td class="hours">R$ 100–130/h</td><td class="num">R$ 20.000 – R$ 26.000</td></tr>
+      <tr><td>Freelancer Sênior</td><td class="hours">R$ 150–160/h</td><td class="num">R$ 30.000 – R$ 32.000</td></tr>
+      <tr><td>Software House</td><td class="hours">—</td><td class="num">R$ 50.000 – R$ 100.000</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="highlight-box">
+  <strong>Sugestão de precificação:</strong> entre <strong>R$ 20.000 e R$ 28.000</strong> para clientes de pequeno/médio porte.
+  Valor justo para um sistema ERP completo, customizado, com Firebase, autenticação e entrega profissional.<br><br>
+  Manutenção mensal (suporte, ajustes, melhorias): <strong>R$ 400 – R$ 600/mês</strong>
+</div>
+
+<div class="footer">
+  <span>Sistema 2R Comércio — Gestão Empresarial</span>
+  <span>Documento gerado em <span id="footer-date"></span></span>
+</div>
+
+<button class="print-btn no-print" onclick="window.print()">🖨 Salvar como PDF</button>
+
+<script>
+  const now = new Date();
+  const formatted = now.toLocaleDateString('pt-BR', { day:'2-digit', month:'long', year:'numeric' });
+  document.getElementById('doc-date').textContent = formatted;
+  document.getElementById('footer-date').textContent = formatted;
+</script>
+</body>
+</html>
